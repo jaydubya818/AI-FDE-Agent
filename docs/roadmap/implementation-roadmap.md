@@ -4,13 +4,15 @@
 **Team:** One founder using AI coding agents
 **Planning assumption:** Eight weeks. Six weeks may produce an internal alpha through implementation-ready artifacts, but it is not design-partner-ready. Compress only by reducing polish or provider breadth, not trust controls.
 
+**Implementation snapshot — 2026-08-08:** A narrow internal-alpha golden path now reaches a versioned implementation specification. It uses text/Markdown evidence, deterministic Acme extraction, minimal workflow semantics, one base economic formula, and a single Markdown artifact. The week-by-week sections below remain the acceptance scope for the broader V1; incomplete items are not implied complete by the vertical slice.
+
 ## Delivery Rule
 
 Every week ends with a runnable repository, a short golden-path demonstration, automated tests for completed behavior, and updated documentation. Incomplete capabilities remain behind a disabled route or feature flag. No placeholder page counts as progress.
 
 ## Phase 0: Product and Architecture Foundation
 
-**Status:** Documentation drafted
+**Status:** Approved and implemented
 
 Deliverables:
 

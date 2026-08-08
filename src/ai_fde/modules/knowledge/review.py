@@ -11,12 +11,14 @@ from ai_fde.models import (
     AssertionEvidence,
     CandidateClaim,
     ClaimEvidence,
+    Engagement,
     EvidenceAsset,
     EvidenceSegment,
     OperatingEntity,
     Operator,
     ReviewDecision,
 )
+from ai_fde.modules.lifecycle import stale_after_model_change
 from ai_fde.modules.shared import publish_domain_event, record_audit
 
 
@@ -74,6 +76,10 @@ def review_claim(
     assertion: Assertion | None = None
     if decision == "accepted":
         assertion = _create_verified_assertion(session, claim, operator)
+        stale_after_model_change(session, engagement_id)
+        engagement = session.get(Engagement, engagement_id)
+        if engagement is not None:
+            engagement.lifecycle_stage = "model"
 
     record_audit(
         session,

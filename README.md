@@ -12,7 +12,7 @@ The long-term goal is to let one human FDE transform and maintain many customer 
 
 ## Current working slice
 
-The repository currently implements the trustworthy foundation:
+The repository implements the smallest complete, trustworthy lifecycle for the synthetic Acme Manufacturing accounts-payable workflow:
 
 ```text
 Create engagement
@@ -21,9 +21,17 @@ Create engagement
   -> review exact-provenance candidate claims
   -> accept or reject with a human decision
   -> query the verified Company Operating Model
+  -> resolve a blocking contradiction with an audited decision
+  -> construct and approve a current-state workflow
+  -> review Human / Software / AI allocations
+  -> approve a separate target-state workflow
+  -> calculate and approve a deterministic economic case
+  -> generate a versioned implementation specification
 ```
 
-The Acme extractor is deliberately deterministic and fixture-backed. It proves the operating path, provenance, contradiction handling, persistent jobs, and model transition without presenting a demo parser as production AI capability.
+The Acme extractor is deliberately deterministic and fixture-backed. It proves the operating path, provenance, contradiction handling, persistent jobs, model transition, stage gates, staleness, economics, and specification dependencies without presenting a demo parser as production AI capability.
+
+This is an internal-alpha vertical slice, not a design-partner release. The current workflow representation is intentionally minimal, the economics module provides one deterministic base formula rather than sensitivity analysis, and the implementation packet is a single versioned Markdown specification rather than the full export set.
 
 ## Run locally
 
@@ -48,6 +56,6 @@ make acceptance
 pnpm build
 ```
 
-The local identity, synthetic classification, supported `.md`/`.txt` formats, and deterministic extractor boundary are visible in the cockpit. Sanitized customer data, production authentication, workflow modeling, economics, specifications, and coding-agent execution are not yet implemented.
+The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. Sanitized customer data, production authentication, broader parsing and model extraction, sensitivity analysis, retention/export/deletion, and coding-agent execution are not yet implemented.
 
 See the [documentation index](docs/README.md) for the product and architecture sources of truth.

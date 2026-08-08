@@ -9,7 +9,7 @@ from ai_fde.modules.evidence.parser import (
 
 
 def test_parser_retains_exact_source_offsets() -> None:
-    source = b"Title\n\nInvoices over $50,000 require CFO approval.\n\nLast paragraph."
+    source = b"Title\n\nInvoices over $50,000 require CFO approval.\n\nLast paragraph.\n"
 
     segments = parse_text_evidence(source, "text/markdown", "policy.md")
 

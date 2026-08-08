@@ -65,7 +65,8 @@ class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("created_by_id", "slug", name="engagement_slug_per_creator"),
         CheckConstraint(
-            "lifecycle_stage IN ('qualify', 'discover', 'model', 'map')",
+            "lifecycle_stage IN ('qualify', 'discover', 'model', 'map', 'decide', "
+            "'design', 'economic_case', 'specify')",
             name="valid_lifecycle_stage",
         ),
         CheckConstraint(
@@ -355,6 +356,150 @@ class Contradiction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
     blocking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    resolution_type: Mapped[str | None] = mapped_column(String(32))
+    resolution_reason: Mapped[str | None] = mapped_column(Text)
+    resolved_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT")
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WorkflowVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "workflow_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "engagement_id", "workflow_kind", "version_number", name="workflow_version_identity"
+        ),
+        CheckConstraint("workflow_kind IN ('current', 'target')", name="valid_workflow_kind"),
+        CheckConstraint("status IN ('draft', 'approved', 'stale')", name="valid_status"),
+        CheckConstraint("generated_by IN ('system', 'operator')", name="valid_generated_by"),
+        Index("ix_workflow_versions_engagement_kind", "engagement_id", "workflow_kind", "status"),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    source_workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="RESTRICT")
+    )
+    source_assertion_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    generated_by: Mapped[str] = mapped_column(String(24), nullable=False, default="system")
+    created_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
+    )
+    approved_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT")
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approval_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class WorkflowStep(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "workflow_steps"
+    __table_args__ = (
+        UniqueConstraint("workflow_version_id", "step_key", name="workflow_step_identity"),
+        CheckConstraint(
+            "step_type IN ('human_task', 'software_task', 'decision', 'approval', 'handoff')",
+            name="valid_step_type",
+        ),
+        CheckConstraint(
+            "allocation IN ('human', 'software', 'ai', 'ai_human')",
+            name="valid_allocation",
+        ),
+        Index("ix_workflow_steps_engagement_workflow", "engagement_id", "workflow_version_id"),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    step_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    step_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_label: Mapped[str | None] = mapped_column(String(255))
+    system_label: Mapped[str | None] = mapped_column(String(255))
+    allocation: Mapped[str] = mapped_column(String(24), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    controls: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    source_assertion_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assertions.id", ondelete="RESTRICT")
+    )
+
+
+class EconomicCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "economic_cases"
+    __table_args__ = (
+        UniqueConstraint("engagement_id", "version_number", name="economic_case_version"),
+        CheckConstraint("status IN ('draft', 'approved', 'stale')", name="valid_status"),
+        Index("ix_economic_cases_engagement_status", "engagement_id", "status"),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    source_target_workflow_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    formula_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    inputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    outputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    assumptions: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    created_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
+    )
+    approved_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT")
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ImplementationArtifact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "implementation_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "engagement_id", "artifact_type", "version_number", name="artifact_version_identity"
+        ),
+        CheckConstraint("artifact_type IN ('implementation_spec')", name="valid_artifact_type"),
+        CheckConstraint("status IN ('current', 'stale')", name="valid_status"),
+        Index("ix_implementation_artifacts_engagement_status", "engagement_id", "status"),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
+    )
+    artifact_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="current")
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_current_workflow_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_target_workflow_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    economic_case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("economic_cases.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_assertion_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    generated_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
+    )
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
 
 
 class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):

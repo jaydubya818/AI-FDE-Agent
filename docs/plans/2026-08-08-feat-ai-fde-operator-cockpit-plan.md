@@ -179,29 +179,29 @@ Deferred. V1 ends at an implementation-ready specification and does not simulate
 
 ## Functional Acceptance Criteria
 
-- [ ] Create and resume the Acme engagement.
-- [ ] Ingest the supported evidence set without duplicate effects.
-- [ ] Cite exact source locations for candidate and verified material claims.
-- [ ] Detect and preserve the seeded approval rule and exception.
-- [ ] Prevent a blocking contradiction from being silently bypassed.
+- [x] Create and resume the Acme engagement.
+- [x] Ingest the currently supported text and Markdown evidence without duplicate effects.
+- [x] Cite exact source locations for candidate and verified material claims.
+- [x] Detect and preserve the seeded approval rule and exception.
+- [x] Prevent a blocking contradiction from being silently bypassed.
 - [ ] Inspect current and historical operating-model state.
-- [ ] Approve an immutable current workflow version.
-- [ ] Review all step allocations and required controls.
-- [ ] Approve a separate target workflow version.
-- [ ] Reproduce economic results from labeled, versioned inputs.
-- [ ] Generate current versioned implementation artifacts.
-- [ ] Mark artifacts stale after a relevant upstream change.
+- [x] Approve an immutable current workflow version.
+- [x] Review every current-slice step allocation and require a control for AI allocation.
+- [x] Approve a separate target workflow version.
+- [x] Reproduce base economic results from labeled, versioned inputs.
+- [x] Generate a current versioned Markdown implementation specification.
+- [x] Mark downstream workflows, economics, and artifacts stale after a relevant upstream assertion changes.
 
 ## Non-Functional Acceptance Criteria
 
-- [ ] Strict typing and schema validation cover all external and model boundaries.
-- [ ] Migrations and clean setup are automated and tested.
+- [x] Strict typing and schema validation cover the implemented API and model boundaries.
+- [x] Migrations and local setup are automated and tested for the implemented slice.
 - [ ] Long operations expose progress, cancellation, retry, failure, and completion.
-- [ ] Cross-engagement read and write tests fail closed.
+- [x] Cross-engagement reads of implemented engagement-owned records fail closed in database tests.
 - [ ] Consequential mutations have complete audit records.
 - [ ] Sensitive evidence and secrets do not appear in routine telemetry.
 - [ ] Core flow is keyboard-operable and targets WCAG 2.2 AA.
-- [ ] The repository remains runnable after each phase.
+- [x] The repository is runnable after the current vertical slice.
 
 ## Success Metrics
 

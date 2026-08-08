@@ -133,13 +133,127 @@ class OperatingModelResponse(BaseModel):
 
 
 class ContradictionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     summary: str
     status: str
     blocking: bool
     left_claim_id: UUID
     right_claim_id: UUID
+    resolution_type: str | None
+    resolution_reason: str | None
+    resolved_by_id: UUID | None
+    resolved_at: datetime | None
     created_at: datetime
+
+
+class ContradictionResolveRequest(BaseModel):
+    resolution_type: Literal["accepted_exception", "not_a_conflict", "superseded", "override"]
+    reason: str = Field(min_length=5, max_length=2000)
+
+
+class WorkflowStepResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    step_key: str
+    position: int
+    name: str
+    description: str
+    step_type: str
+    actor_label: str | None
+    system_label: str | None
+    allocation: str
+    rationale: str
+    controls: list[str]
+    source_assertion_id: UUID | None
+
+
+class WorkflowResponse(BaseModel):
+    id: UUID
+    workflow_kind: str
+    version_number: int
+    name: str
+    objective: str
+    status: str
+    source_workflow_id: UUID | None
+    source_assertion_ids: list[str]
+    generated_by: str
+    approved_at: datetime | None
+    approval_reason: str | None
+    created_at: datetime
+    updated_at: datetime
+    steps: list[WorkflowStepResponse]
+
+
+class WorkflowWorkspaceResponse(BaseModel):
+    current: WorkflowResponse | None
+    target: WorkflowResponse | None
+
+
+class WorkflowStepUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=255)
+    description: str | None = Field(default=None, min_length=2, max_length=4000)
+    actor_label: str | None = Field(default=None, max_length=255)
+    allocation: Literal["human", "software", "ai", "ai_human"] | None = None
+    rationale: str | None = Field(default=None, min_length=2, max_length=4000)
+    controls: list[str] | None = Field(default=None, max_length=20)
+
+
+class WorkflowApproveRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+EvidenceClassification = Literal["measured", "calculated", "estimated", "synthetic", "simulated"]
+
+
+class EconomicInputValue(BaseModel):
+    value: Decimal = Field(ge=0, max_digits=18, decimal_places=4)
+    classification: EvidenceClassification
+
+
+class EconomicCalculateRequest(BaseModel):
+    annual_volume: EconomicInputValue
+    current_minutes_per_item: EconomicInputValue
+    target_minutes_per_item: EconomicInputValue
+    loaded_hourly_cost: EconomicInputValue
+    implementation_cost: EconomicInputValue
+    annual_operating_cost: EconomicInputValue
+    assumptions: list[str] = Field(default_factory=list, max_length=20)
+
+
+class EconomicCaseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    version_number: int
+    status: str
+    source_target_workflow_id: UUID
+    formula_version: str
+    inputs: dict[str, Any]
+    outputs: dict[str, Any]
+    assumptions: list[str]
+    approved_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ImplementationArtifactResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    artifact_type: str
+    version_number: int
+    status: str
+    title: str
+    content: str
+    content_hash: str
+    source_current_workflow_id: UUID
+    source_target_workflow_id: UUID
+    economic_case_id: UUID
+    source_assertion_ids: list[str]
+    generated_at: datetime
 
 
 class HealthResponse(BaseModel):

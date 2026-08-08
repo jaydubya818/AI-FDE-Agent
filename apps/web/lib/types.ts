@@ -66,6 +66,10 @@ export type Contradiction = {
   blocking: boolean;
   left_claim_id: string;
   right_claim_id: string;
+  resolution_type: string | null;
+  resolution_reason: string | null;
+  resolved_by_id: string | null;
+  resolved_at: string | null;
   created_at: string;
 };
 
@@ -102,4 +106,80 @@ export type Assertion = {
 export type OperatingModel = {
   entities: Entity[];
   assertions: Assertion[];
+};
+
+export type WorkflowStep = {
+  id: string;
+  step_key: string;
+  position: number;
+  name: string;
+  description: string;
+  step_type: string;
+  actor_label: string | null;
+  system_label: string | null;
+  allocation: "human" | "software" | "ai" | "ai_human";
+  rationale: string;
+  controls: string[];
+  source_assertion_id: string | null;
+};
+
+export type Workflow = {
+  id: string;
+  workflow_kind: "current" | "target";
+  version_number: number;
+  name: string;
+  objective: string;
+  status: "draft" | "approved" | "stale";
+  source_workflow_id: string | null;
+  source_assertion_ids: string[];
+  generated_by: string;
+  approved_at: string | null;
+  approval_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  steps: WorkflowStep[];
+};
+
+export type WorkflowWorkspace = {
+  current: Workflow | null;
+  target: Workflow | null;
+};
+
+export type EvidenceClassification =
+  "measured" | "calculated" | "estimated" | "synthetic" | "simulated";
+
+export type EconomicValue = {
+  value: string | null;
+  unit: string;
+  classification: EvidenceClassification;
+  formula?: string;
+};
+
+export type EconomicCase = {
+  id: string;
+  version_number: number;
+  status: "draft" | "approved" | "stale";
+  source_target_workflow_id: string;
+  formula_version: string;
+  inputs: Record<string, EconomicValue>;
+  outputs: Record<string, EconomicValue>;
+  assumptions: string[];
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ImplementationArtifact = {
+  id: string;
+  artifact_type: "implementation_spec";
+  version_number: number;
+  status: "current" | "stale";
+  title: string;
+  content: string;
+  content_hash: string;
+  source_current_workflow_id: string;
+  source_target_workflow_id: string;
+  economic_case_id: string;
+  source_assertion_ids: string[];
+  generated_at: string;
 };

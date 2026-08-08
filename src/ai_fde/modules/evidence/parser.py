@@ -37,7 +37,11 @@ def parse_text_evidence(content: bytes, content_type: str, file_name: str) -> li
         raise UnsupportedEvidenceTypeError("Evidence must be valid UTF-8 text.") from exc
 
     segments: list[ParsedSegment] = []
-    for match in re.finditer(r"\S(?:.*?\S)?(?=\n\s*\n|\Z)", text, flags=re.DOTALL):
+    for match in re.finditer(
+        r"\S(?:.*?\S)?(?=(?:\r?\n)[ \t]*(?:\r?\n)|\s*\Z)",
+        text,
+        flags=re.DOTALL,
+    ):
         segment_text = match.group(0).strip()
         if not segment_text:
             continue

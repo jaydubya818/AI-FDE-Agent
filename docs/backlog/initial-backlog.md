@@ -5,9 +5,11 @@
 
 ## Implementation Snapshot — 2026-08-08
 
-- Complete: FND-01 through FND-05, PLT-01/03/04/05/06/07/09, EVD-02/03/05/06/08, KNO-03/05/07, COM-02, and the initial SEC-02/03 row-isolation foundation.
+- Complete: FND-01 through FND-05, PLT-01/03/04/05/06/07/09, EVD-02/03/05/06/08, KNO-03/05/07, COM-02/07, WFL-01/03/05, DEC-03/04, ECO-01/02, ART-01/05, and the initial SEC-02/03 row-isolation foundation.
+- Working narrow implementations: WFL-02/04, ECO-04, and ART-02 prove the golden path but do not yet satisfy the full backlog acceptance language for workflow transitions, evidence editing, scenario sensitivity, or a multi-artifact packet.
 - Narrow V1 implementation: text and Markdown only; deterministic Acme extraction only; local development identity only.
-- Next product slice: complete review semantics and model history, then construct the evidence-backed current workflow.
+- End-to-end slice: verified assertions now drive approved current and target workflows, a reproducible base economic case, and a dependency-pinned Markdown implementation specification.
+- Next product slice: harden extraction, complete model history and workflow semantics, and close design-partner security/data-handling gates before adding product breadth.
 - Deferred post-V1 by product decision: ART-04 and Epic 8 coding-agent execution.
 
 ## Epic 0: Foundation Decisions

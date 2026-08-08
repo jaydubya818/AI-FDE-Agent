@@ -5,7 +5,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import select
 
 from ai_fde.api.dependencies import (
     EvidenceStoreDependency,
@@ -17,18 +16,39 @@ from ai_fde.api.schemas import (
     ClaimResponse,
     ClaimReviewRequest,
     ClaimReviewResponse,
+    ContradictionResolveRequest,
     ContradictionResponse,
+    EconomicCalculateRequest,
+    EconomicCaseResponse,
     EngagementCreate,
     EngagementResponse,
     EngagementWorkspaceResponse,
     EntityResponse,
     EvidenceResponse,
     HealthResponse,
+    ImplementationArtifactResponse,
     OperatingModelResponse,
     OperatorNoteCreate,
     ProvenanceResponse,
+    WorkflowApproveRequest,
+    WorkflowResponse,
+    WorkflowStepResponse,
+    WorkflowStepUpdateRequest,
+    WorkflowWorkspaceResponse,
 )
-from ai_fde.models import Contradiction
+from ai_fde.models import WorkflowVersion
+from ai_fde.modules.artifacts.service import (
+    ArtifactStageGateError,
+    generate_implementation_specification,
+    get_latest_artifact,
+)
+from ai_fde.modules.economics.service import (
+    EconomicCaseNotFoundError,
+    EconomicStageGateError,
+    approve_economic_case,
+    calculate_economic_case,
+    get_latest_economic_case,
+)
 from ai_fde.modules.engagements.service import (
     EngagementNotFoundError,
     create_engagement,
@@ -41,6 +61,12 @@ from ai_fde.modules.evidence.service import (
     create_evidence_asset,
     list_evidence,
 )
+from ai_fde.modules.knowledge.contradictions import (
+    ContradictionAlreadyResolvedError,
+    ContradictionNotFoundError,
+    list_contradictions,
+    resolve_contradiction,
+)
 from ai_fde.modules.knowledge.review import (
     ClaimAlreadyReviewedError,
     ClaimNotFoundError,
@@ -49,6 +75,16 @@ from ai_fde.modules.knowledge.review import (
     review_claim,
 )
 from ai_fde.modules.operating_model.service import list_entities, list_verified_assertions
+from ai_fde.modules.workflows.service import (
+    WorkflowNotFoundError,
+    WorkflowStageGateError,
+    approve_workflow,
+    generate_current_workflow,
+    generate_target_workflow,
+    list_latest_workflows,
+    list_workflow_steps,
+    update_workflow_step,
+)
 
 router = APIRouter()
 
@@ -253,12 +289,271 @@ def list_contradictions_endpoint(
     engagement_id: UUID, session: SessionDependency
 ) -> list[ContradictionResponse]:
     _require_engagement(session, engagement_id)
-    items = session.scalars(
-        select(Contradiction)
-        .where(Contradiction.engagement_id == engagement_id)
-        .order_by(Contradiction.created_at.desc())
+    return [
+        ContradictionResponse.model_validate(item)
+        for item in list_contradictions(session, engagement_id)
+    ]
+
+
+@router.post(
+    "/engagements/{engagement_id}/contradictions/{contradiction_id}/resolve",
+    response_model=ContradictionResponse,
+)
+def resolve_contradiction_endpoint(
+    engagement_id: UUID,
+    contradiction_id: UUID,
+    payload: ContradictionResolveRequest,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> ContradictionResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        contradiction = resolve_contradiction(
+            session,
+            engagement_id=engagement_id,
+            contradiction_id=contradiction_id,
+            operator=operator,
+            resolution_type=payload.resolution_type,
+            reason=payload.reason,
+        )
+    except ContradictionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Contradiction not found.") from exc
+    except ContradictionAlreadyResolvedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ContradictionResponse.model_validate(contradiction)
+
+
+@router.get(
+    "/engagements/{engagement_id}/workflows",
+    response_model=WorkflowWorkspaceResponse,
+)
+def get_workflows_endpoint(
+    engagement_id: UUID, session: SessionDependency
+) -> WorkflowWorkspaceResponse:
+    _require_engagement(session, engagement_id)
+    workflows = list_latest_workflows(session, engagement_id)
+    return WorkflowWorkspaceResponse(
+        current=_workflow_response(session, workflows["current"]),
+        target=_workflow_response(session, workflows["target"]),
     )
-    return [ContradictionResponse.model_validate(item, from_attributes=True) for item in items]
+
+
+@router.post(
+    "/engagements/{engagement_id}/workflows/current/generate",
+    response_model=WorkflowResponse,
+)
+def generate_current_workflow_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> WorkflowResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        workflow = generate_current_workflow(
+            session, engagement_id=engagement_id, operator=operator
+        )
+    except WorkflowStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response = _workflow_response(session, workflow)
+    assert response is not None
+    return response
+
+
+@router.post(
+    "/engagements/{engagement_id}/workflows/target/generate",
+    response_model=WorkflowResponse,
+)
+def generate_target_workflow_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> WorkflowResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        workflow = generate_target_workflow(session, engagement_id=engagement_id, operator=operator)
+    except WorkflowStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response = _workflow_response(session, workflow)
+    assert response is not None
+    return response
+
+
+@router.post(
+    "/engagements/{engagement_id}/workflows/{workflow_id}/steps/{step_id}",
+    response_model=WorkflowStepResponse,
+)
+def update_workflow_step_endpoint(
+    engagement_id: UUID,
+    workflow_id: UUID,
+    step_id: UUID,
+    payload: WorkflowStepUpdateRequest,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> WorkflowStepResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        step = update_workflow_step(
+            session,
+            engagement_id=engagement_id,
+            workflow_id=workflow_id,
+            step_id=step_id,
+            operator=operator,
+            **payload.model_dump(exclude_unset=True),
+        )
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Workflow step not found.") from exc
+    except WorkflowStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return WorkflowStepResponse.model_validate(step)
+
+
+@router.post(
+    "/engagements/{engagement_id}/workflows/{workflow_id}/approve",
+    response_model=WorkflowResponse,
+)
+def approve_workflow_endpoint(
+    engagement_id: UUID,
+    workflow_id: UUID,
+    payload: WorkflowApproveRequest,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> WorkflowResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        workflow = approve_workflow(
+            session,
+            engagement_id=engagement_id,
+            workflow_id=workflow_id,
+            operator=operator,
+            reason=payload.reason,
+        )
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Workflow not found.") from exc
+    except WorkflowStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response = _workflow_response(session, workflow)
+    assert response is not None
+    return response
+
+
+@router.get(
+    "/engagements/{engagement_id}/economics",
+    response_model=EconomicCaseResponse | None,
+)
+def get_economics_endpoint(
+    engagement_id: UUID, session: SessionDependency
+) -> EconomicCaseResponse | None:
+    _require_engagement(session, engagement_id)
+    economic_case = get_latest_economic_case(session, engagement_id)
+    return EconomicCaseResponse.model_validate(economic_case) if economic_case else None
+
+
+@router.post(
+    "/engagements/{engagement_id}/economics/calculate",
+    response_model=EconomicCaseResponse,
+)
+def calculate_economics_endpoint(
+    engagement_id: UUID,
+    payload: EconomicCalculateRequest,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> EconomicCaseResponse:
+    _require_engagement(session, engagement_id)
+    input_payload = payload.model_dump(exclude={"assumptions"})
+    try:
+        economic_case = calculate_economic_case(
+            session,
+            engagement_id=engagement_id,
+            operator=operator,
+            values={key: item["value"] for key, item in input_payload.items()},
+            classifications={key: item["classification"] for key, item in input_payload.items()},
+            assumptions=payload.assumptions,
+        )
+    except EconomicStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return EconomicCaseResponse.model_validate(economic_case)
+
+
+@router.post(
+    "/engagements/{engagement_id}/economics/{economic_case_id}/approve",
+    response_model=EconomicCaseResponse,
+)
+def approve_economics_endpoint(
+    engagement_id: UUID,
+    economic_case_id: UUID,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> EconomicCaseResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        economic_case = approve_economic_case(
+            session,
+            engagement_id=engagement_id,
+            economic_case_id=economic_case_id,
+            operator=operator,
+        )
+    except EconomicCaseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Economic case not found.") from exc
+    except EconomicStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return EconomicCaseResponse.model_validate(economic_case)
+
+
+@router.get(
+    "/engagements/{engagement_id}/implementation-specifications",
+    response_model=ImplementationArtifactResponse | None,
+)
+def get_implementation_specification_endpoint(
+    engagement_id: UUID, session: SessionDependency
+) -> ImplementationArtifactResponse | None:
+    _require_engagement(session, engagement_id)
+    artifact = get_latest_artifact(session, engagement_id)
+    return ImplementationArtifactResponse.model_validate(artifact) if artifact else None
+
+
+@router.post(
+    "/engagements/{engagement_id}/implementation-specifications/generate",
+    response_model=ImplementationArtifactResponse,
+)
+def generate_implementation_specification_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    operator: OperatorDependency,
+) -> ImplementationArtifactResponse:
+    _require_engagement(session, engagement_id)
+    try:
+        artifact = generate_implementation_specification(
+            session, engagement_id=engagement_id, operator=operator
+        )
+    except ArtifactStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ImplementationArtifactResponse.model_validate(artifact)
+
+
+def _workflow_response(
+    session: SessionDependency, workflow: WorkflowVersion | None
+) -> WorkflowResponse | None:
+    if workflow is None:
+        return None
+    return WorkflowResponse(
+        id=workflow.id,
+        workflow_kind=workflow.workflow_kind,
+        version_number=workflow.version_number,
+        name=workflow.name,
+        objective=workflow.objective,
+        status=workflow.status,
+        source_workflow_id=workflow.source_workflow_id,
+        source_assertion_ids=workflow.source_assertion_ids,
+        generated_by=workflow.generated_by,
+        approved_at=workflow.approved_at,
+        approval_reason=workflow.approval_reason,
+        created_at=workflow.created_at,
+        updated_at=workflow.updated_at,
+        steps=[
+            WorkflowStepResponse.model_validate(step)
+            for step in list_workflow_steps(session, workflow.id)
+        ],
+    )
 
 
 def _require_engagement(session: SessionDependency, engagement_id: UUID) -> None:

@@ -7,7 +7,7 @@ from sqlalchemy import select, text
 
 from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import SessionFactory, apply_operator_context, operator_session
-from ai_fde.models import Engagement, EvidenceAsset, Operator
+from ai_fde.models import Engagement, EvidenceAsset, Operator, WorkflowVersion
 from ai_fde.modules.engagements.service import create_engagement
 from ai_fde.modules.evidence.service import create_evidence_asset
 from tests.conftest import OperatorFixture
@@ -60,11 +60,26 @@ def test_runtime_role_cannot_bypass_row_level_security(
             content=b"Invoices over $50,000 require CFO approval.",
         )
         evidence_id = evidence.id
+        workflow = WorkflowVersion(
+            engagement_id=engagement.id,
+            workflow_kind="current",
+            version_number=1,
+            name="Tenant A workflow",
+            objective="Prove new lifecycle tables remain isolated.",
+            source_assertion_ids=[],
+            generated_by="operator",
+            created_by_id=operator.id,
+        )
+        session.add(workflow)
+        session.flush()
+        workflow_id = workflow.id
 
     with operator_session(operator_b.id) as session:
         assert session.get(Engagement, engagement_id) is None
         assert session.get(EvidenceAsset, evidence_id) is None
+        assert session.get(WorkflowVersion, workflow_id) is None
         assert list(session.scalars(select(EvidenceAsset))) == []
+        assert list(session.scalars(select(WorkflowVersion))) == []
 
         runtime_role = session.execute(
             text("SELECT current_user, rolbypassrls FROM pg_roles WHERE rolname = current_user")
