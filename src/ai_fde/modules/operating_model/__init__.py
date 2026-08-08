@@ -1,0 +1,1 @@
+"""Company Operating Model module."""

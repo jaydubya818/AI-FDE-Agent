@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-fde"
+version = "0.1.0"
+description = "A stateful operating system for Forward Deployed Engineers"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "alembic>=1.18,<1.19",
+  "boto3>=1.40,<2",
+  "fastapi>=0.116,<1",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic-settings>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
+  "sqlalchemy>=2.0.51,<2.1",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<1",
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<9",
+  "pytest-cov>=6.2,<7",
+  "ruff>=0.12,<1",
+  "testcontainers[postgres]>=4.12,<5",
+]
+
+[project.scripts]
+ai-fde-worker = "ai_fde.worker:main"
+ai-fde-seed = "ai_fde.seed:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_fde"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "integration: requires PostgreSQL and object storage",
+  "isolation: verifies engagement authorization and row security",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["ai_fde"]
+ignore_missing_imports = true
