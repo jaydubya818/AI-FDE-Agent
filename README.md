@@ -33,6 +33,10 @@ The Acme extractor is deliberately deterministic and fixture-backed. It proves t
 
 This is an internal-alpha vertical slice, not a design-partner release. The current workflow representation is intentionally minimal, the economics module provides one deterministic base formula rather than sensitivity analysis, and the implementation packet is a single versioned Markdown specification rather than the full export set.
 
+The API now derives database context from an explicit authenticated principal and enforces the
+`owner` / `operator` / `viewer` role matrix on every engagement route. Local identity is restricted
+to development, cannot access sanitized engagements, and is visibly not production authentication.
+
 ## Run locally
 
 Prerequisites are Docker Desktop, Python 3.13, `uv`, Node.js 20.9 or newer, and `pnpm`.
@@ -56,6 +60,6 @@ make acceptance
 pnpm build
 ```
 
-The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. Sanitized customer data, production authentication, broader parsing and model extraction, sensitivity analysis, retention/export/deletion, and coding-agent execution are not yet implemented.
+The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. The provider-backed OIDC adapter and opaque session proposed in ADR 0011, broader parsing and model extraction, sensitivity analysis, retention/export/deletion, and coding-agent execution are not yet implemented. Sanitized data remains blocked.
 
 See the [documentation index](docs/README.md) for the product and architecture sources of truth.

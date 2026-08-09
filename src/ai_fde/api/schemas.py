@@ -32,6 +32,13 @@ class EngagementWorkspaceResponse(BaseModel):
     counts: dict[str, int]
 
 
+class AuthenticatedOperatorResponse(BaseModel):
+    id: UUID
+    display_name: str
+    auth_mode: str
+    sanitized_data_allowed: bool
+
+
 class EvidenceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

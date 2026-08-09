@@ -18,7 +18,8 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        ensure_local_operator(settings)
+        if settings.auth_mode == "development":
+            ensure_local_operator(settings)
         store.ensure_bucket()
         app.state.evidence_store = store
         yield

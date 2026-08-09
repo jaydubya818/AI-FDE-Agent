@@ -13,7 +13,11 @@ from ai_fde.models import Operator
 
 def build_engine(settings: Settings | None = None) -> Engine:
     resolved = settings or get_settings()
-    return create_engine(resolved.database_url, pool_pre_ping=True)
+    return create_engine(
+        resolved.database_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": resolved.database_connect_timeout_seconds},
+    )
 
 
 engine = build_engine()
@@ -40,6 +44,8 @@ def operator_session(operator_id: UUID) -> Iterator[Session]:
 
 def ensure_local_operator(settings: Settings | None = None) -> None:
     resolved = settings or get_settings()
+    if resolved.auth_mode != "development":
+        raise RuntimeError("Local operator initialization is development-only.")
     with operator_session(resolved.operator_id) as session:
         existing = session.scalar(select(Operator).where(Operator.id == resolved.operator_id))
         if existing is None:

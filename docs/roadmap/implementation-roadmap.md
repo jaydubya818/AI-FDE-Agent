@@ -152,6 +152,8 @@ Exit gate:
 
 ## Week 7: Trust and Security Hardening
 
+**Status:** In progress — explicit principals, application role authorization, fail-closed local identity, and route/RLS isolation tests are implemented. Provider-backed OIDC, service identity, and sanitized-data lifecycle remain open.
+
 Build:
 
 - OIDC and operator role.

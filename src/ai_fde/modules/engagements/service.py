@@ -73,13 +73,20 @@ def create_engagement(
     return engagement
 
 
-def list_engagements(session: Session, operator_id: UUID) -> list[Engagement]:
+def list_engagements(
+    session: Session,
+    operator_id: UUID,
+    *,
+    include_sanitized: bool = False,
+) -> list[Engagement]:
     statement = (
         select(Engagement)
         .join(EngagementMember, EngagementMember.engagement_id == Engagement.id)
         .where(EngagementMember.operator_id == operator_id)
         .order_by(Engagement.created_at.desc())
     )
+    if not include_sanitized:
+        statement = statement.where(Engagement.data_classification != "sanitized")
     return list(session.scalars(statement))
 
 

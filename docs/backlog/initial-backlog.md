@@ -9,7 +9,8 @@
 - Working narrow implementations: WFL-02/04, ECO-04, and ART-02 prove the golden path but do not yet satisfy the full backlog acceptance language for workflow transitions, evidence editing, scenario sensitivity, or a multi-artifact packet.
 - Narrow V1 implementation: text and Markdown only; deterministic Acme extraction only; local development identity only.
 - End-to-end slice: verified assertions now drive approved current and target workflows, a reproducible base economic case, and a dependency-pinned Markdown implementation specification.
-- Next product slice: harden extraction, complete model history and workflow semantics, and close design-partner security/data-handling gates before adding product breadth.
+- Authorization foundation: an explicit request principal now drives the database RLS context; owner/operator/viewer permissions are enforced on every engagement route; outsiders receive non-disclosing 404s; development identity cannot access or create sanitized engagements.
+- Next product slice: approve ADR 0011, select and configure the first OIDC provider, implement the opaque production session, and then add retention/export/deletion before accepting sanitized data.
 - Deferred post-V1 by product decision: ART-04 and Epic 8 coding-agent execution.
 
 ## Epic 0: Foundation Decisions

@@ -7,12 +7,16 @@ from uuid import UUID
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 
 from ai_fde.api.dependencies import (
+    EngagementReadDependency,
+    EngagementWriteDependency,
     EvidenceStoreDependency,
     OperatorDependency,
+    PrincipalDependency,
     SessionDependency,
 )
 from ai_fde.api.schemas import (
     AssertionResponse,
+    AuthenticatedOperatorResponse,
     ClaimResponse,
     ClaimReviewRequest,
     ClaimReviewResponse,
@@ -94,12 +98,31 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok", service="ai-fde-api")
 
 
+@router.get("/auth/me", response_model=AuthenticatedOperatorResponse)
+def authenticated_operator_endpoint(
+    operator: OperatorDependency,
+    principal: PrincipalDependency,
+) -> AuthenticatedOperatorResponse:
+    return AuthenticatedOperatorResponse(
+        id=operator.id,
+        display_name=operator.display_name,
+        auth_mode=principal.auth_mode,
+        sanitized_data_allowed=principal.sanitized_data_allowed,
+    )
+
+
 @router.post("/engagements", response_model=EngagementResponse, status_code=status.HTTP_201_CREATED)
 def create_engagement_endpoint(
     payload: EngagementCreate,
     session: SessionDependency,
     operator: OperatorDependency,
+    principal: PrincipalDependency,
 ) -> EngagementResponse:
+    if payload.data_classification == "sanitized" and not principal.sanitized_data_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Sanitized engagements require production OIDC authentication.",
+        )
     engagement = create_engagement(
         session,
         operator=operator,
@@ -114,9 +137,15 @@ def create_engagement_endpoint(
 def list_engagements_endpoint(
     session: SessionDependency,
     operator: OperatorDependency,
+    principal: PrincipalDependency,
 ) -> list[EngagementResponse]:
     return [
-        EngagementResponse.model_validate(item) for item in list_engagements(session, operator.id)
+        EngagementResponse.model_validate(item)
+        for item in list_engagements(
+            session,
+            operator.id,
+            include_sanitized=principal.sanitized_data_allowed,
+        )
     ]
 
 
@@ -124,6 +153,7 @@ def list_engagements_endpoint(
 def get_engagement_endpoint(
     engagement_id: UUID,
     session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> EngagementWorkspaceResponse:
     try:
         engagement = get_engagement(session, engagement_id)
@@ -144,11 +174,11 @@ async def upload_evidence_endpoint(
     engagement_id: UUID,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
     store: EvidenceStoreDependency,
     file: Annotated[UploadFile, File()],
     source_timestamp: Annotated[datetime | None, Form()] = None,
 ) -> EvidenceResponse:
-    _require_engagement(session, engagement_id)
     content = await file.read()
     try:
         asset = create_evidence_asset(
@@ -176,9 +206,9 @@ def create_note_endpoint(
     payload: OperatorNoteCreate,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
     store: EvidenceStoreDependency,
 ) -> EvidenceResponse:
-    _require_engagement(session, engagement_id)
     safe_title = "-".join(payload.title.casefold().split())
     asset = create_evidence_asset(
         session,
@@ -196,9 +226,10 @@ def create_note_endpoint(
 
 @router.get("/engagements/{engagement_id}/evidence", response_model=list[EvidenceResponse])
 def list_evidence_endpoint(
-    engagement_id: UUID, session: SessionDependency
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> list[EvidenceResponse]:
-    _require_engagement(session, engagement_id)
     return [EvidenceResponse.model_validate(item) for item in list_evidence(session, engagement_id)]
 
 
@@ -206,9 +237,9 @@ def list_evidence_endpoint(
 def list_claims_endpoint(
     engagement_id: UUID,
     session: SessionDependency,
+    _access: EngagementReadDependency,
     claim_status: str | None = Query(default=None, alias="status"),
 ) -> list[ClaimResponse]:
-    _require_engagement(session, engagement_id)
     response: list[ClaimResponse] = []
     for claim in list_claims(session, engagement_id, claim_status):
         provenance = [
@@ -244,8 +275,8 @@ def review_claim_endpoint(
     payload: ClaimReviewRequest,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> ClaimReviewResponse:
-    _require_engagement(session, engagement_id)
     try:
         assertion = review_claim(
             session,
@@ -268,9 +299,10 @@ def review_claim_endpoint(
 
 @router.get("/engagements/{engagement_id}/operating-model", response_model=OperatingModelResponse)
 def get_operating_model_endpoint(
-    engagement_id: UUID, session: SessionDependency
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> OperatingModelResponse:
-    _require_engagement(session, engagement_id)
     entities = [
         EntityResponse.model_validate(item) for item in list_entities(session, engagement_id)
     ]
@@ -286,9 +318,10 @@ def get_operating_model_endpoint(
     response_model=list[ContradictionResponse],
 )
 def list_contradictions_endpoint(
-    engagement_id: UUID, session: SessionDependency
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> list[ContradictionResponse]:
-    _require_engagement(session, engagement_id)
     return [
         ContradictionResponse.model_validate(item)
         for item in list_contradictions(session, engagement_id)
@@ -305,8 +338,8 @@ def resolve_contradiction_endpoint(
     payload: ContradictionResolveRequest,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> ContradictionResponse:
-    _require_engagement(session, engagement_id)
     try:
         contradiction = resolve_contradiction(
             session,
@@ -328,9 +361,10 @@ def resolve_contradiction_endpoint(
     response_model=WorkflowWorkspaceResponse,
 )
 def get_workflows_endpoint(
-    engagement_id: UUID, session: SessionDependency
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> WorkflowWorkspaceResponse:
-    _require_engagement(session, engagement_id)
     workflows = list_latest_workflows(session, engagement_id)
     return WorkflowWorkspaceResponse(
         current=_workflow_response(session, workflows["current"]),
@@ -346,8 +380,8 @@ def generate_current_workflow_endpoint(
     engagement_id: UUID,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> WorkflowResponse:
-    _require_engagement(session, engagement_id)
     try:
         workflow = generate_current_workflow(
             session, engagement_id=engagement_id, operator=operator
@@ -367,8 +401,8 @@ def generate_target_workflow_endpoint(
     engagement_id: UUID,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> WorkflowResponse:
-    _require_engagement(session, engagement_id)
     try:
         workflow = generate_target_workflow(session, engagement_id=engagement_id, operator=operator)
     except WorkflowStageGateError as exc:
@@ -389,8 +423,8 @@ def update_workflow_step_endpoint(
     payload: WorkflowStepUpdateRequest,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> WorkflowStepResponse:
-    _require_engagement(session, engagement_id)
     try:
         step = update_workflow_step(
             session,
@@ -417,8 +451,8 @@ def approve_workflow_endpoint(
     payload: WorkflowApproveRequest,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> WorkflowResponse:
-    _require_engagement(session, engagement_id)
     try:
         workflow = approve_workflow(
             session,
@@ -441,9 +475,10 @@ def approve_workflow_endpoint(
     response_model=EconomicCaseResponse | None,
 )
 def get_economics_endpoint(
-    engagement_id: UUID, session: SessionDependency
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> EconomicCaseResponse | None:
-    _require_engagement(session, engagement_id)
     economic_case = get_latest_economic_case(session, engagement_id)
     return EconomicCaseResponse.model_validate(economic_case) if economic_case else None
 
@@ -457,8 +492,8 @@ def calculate_economics_endpoint(
     payload: EconomicCalculateRequest,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> EconomicCaseResponse:
-    _require_engagement(session, engagement_id)
     input_payload = payload.model_dump(exclude={"assumptions"})
     try:
         economic_case = calculate_economic_case(
@@ -483,8 +518,8 @@ def approve_economics_endpoint(
     economic_case_id: UUID,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> EconomicCaseResponse:
-    _require_engagement(session, engagement_id)
     try:
         economic_case = approve_economic_case(
             session,
@@ -504,9 +539,10 @@ def approve_economics_endpoint(
     response_model=ImplementationArtifactResponse | None,
 )
 def get_implementation_specification_endpoint(
-    engagement_id: UUID, session: SessionDependency
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
 ) -> ImplementationArtifactResponse | None:
-    _require_engagement(session, engagement_id)
     artifact = get_latest_artifact(session, engagement_id)
     return ImplementationArtifactResponse.model_validate(artifact) if artifact else None
 
@@ -519,8 +555,8 @@ def generate_implementation_specification_endpoint(
     engagement_id: UUID,
     session: SessionDependency,
     operator: OperatorDependency,
+    _access: EngagementWriteDependency,
 ) -> ImplementationArtifactResponse:
-    _require_engagement(session, engagement_id)
     try:
         artifact = generate_implementation_specification(
             session, engagement_id=engagement_id, operator=operator
@@ -554,10 +590,3 @@ def _workflow_response(
             for step in list_workflow_steps(session, workflow.id)
         ],
     )
-
-
-def _require_engagement(session: SessionDependency, engagement_id: UUID) -> None:
-    try:
-        get_engagement(session, engagement_id)
-    except EngagementNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Engagement not found.") from exc
