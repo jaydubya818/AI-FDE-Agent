@@ -1,53 +1,100 @@
 # AI-FDE
 
-AI-FDE is a stateful operating system for Forward Deployed Engineers.
+AI-FDE is a stateful operating system for Forward Deployed Engineers. It helps one human FDE turn enterprise evidence into a verified model of how a company operates, redesign a workflow, quantify the business case, and produce an implementation-ready specification.
 
-It helps one human FDE understand how a customer actually operates, redesign one workflow around the right mix of people, deterministic software, and AI, and produce an implementation-ready plan backed by evidence and economics.
+AI-FDE is not a chatbot. Documents are evidence, not truth. The canonical state is an evidence-backed Company Operating Model, or Business Twin, in which every accepted assertion, relationship, rule, exception, and workflow decision retains its provenance and human verification history.
 
-AI-FDE is not a chatbot. Documents are evidence. The Company Operating Model, or Business Twin, is the durable representation of the organization. Every accepted fact, relationship, rule, exception, and workflow decision is traceable to evidence.
+> **Project status: internal alpha.** The repository proves one end-to-end accounts-payable workflow using explicitly synthetic Acme Manufacturing data. It is not approved for customer data or production operation.
 
-The first product is an internal FDE Operator Cockpit. Its first proof uses a synthetic Acme Manufacturing accounts-payable workflow. It turns enterprise context into a verified operating model, a current-state workflow, a target-state workflow, a quantified business case, and engineering specifications. Coding-agent execution and production operations are later phases.
+## What works today
 
-The long-term goal is to let one human FDE transform and maintain many customer environments without proportional growth in engineering headcount, while humans remain accountable for material customer and business risk.
-
-## Current working slice
-
-The repository implements the smallest complete, trustworthy lifecycle for the synthetic Acme Manufacturing accounts-payable workflow:
+The Operator Cockpit implements this vertical slice:
 
 ```text
 Create engagement
-  -> preserve text or Markdown evidence
-  -> process a persistent extraction job
-  -> review exact-provenance candidate claims
-  -> accept or reject with a human decision
-  -> query the verified Company Operating Model
-  -> resolve a blocking contradiction with an audited decision
-  -> construct and approve a current-state workflow
+  -> ingest immutable text or Markdown evidence
+  -> extract candidate claims in a persistent worker job
+  -> review exact provenance and accept or reject each claim
+  -> construct the verified Company Operating Model
+  -> preserve and resolve contradictions with an audited decision
+  -> draft and approve the current-state workflow
   -> review Human / Software / AI allocations
-  -> approve a separate target-state workflow
+  -> design and approve the target-state workflow
   -> calculate and approve a deterministic economic case
-  -> generate a versioned implementation specification
+  -> generate a dependency-pinned implementation specification
   -> set an explicit retention deadline
-  -> export a hash-verified portability archive
+  -> export a deterministic, hash-verified portability archive
   -> permanently delete engagement content with a content-free receipt
 ```
 
-The Acme extractor is deliberately deterministic and fixture-backed. It proves the operating path, provenance, contradiction handling, persistent jobs, model transition, stage gates, staleness, economics, and specification dependencies without presenting a demo parser as production AI capability.
+| Area           | Implemented V1 capability                                                                      | Current boundary                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Evidence       | Immutable assets, SHA-256 integrity, addressable segments, persistent ingestion jobs           | `.md` and `.txt` only                                              |
+| Extraction     | Candidate claims with exact source provenance and confidence                                   | Deterministic Acme fixture extractor, not production AI extraction |
+| Verification   | Human accept/reject decisions, contradictions, uncertainty, freshness, audit events            | Deliberately narrow review operations                              |
+| Business Twin  | Verified assertions and relationships queried from structured state                            | Minimal relational Company Operating Model                         |
+| Workflows      | Separate, versioned current and target states with approval gates                              | One accounts-payable workflow pattern                              |
+| Allocation     | Human / Software / AI recommendations with operator decisions                                  | Bounded deterministic recommendations                              |
+| Economics      | Reproducible formulas with measured, calculated, estimated, synthetic, and simulated labels    | Base case only; no sensitivity scenarios yet                       |
+| Specifications | Versioned Markdown implementation specification pinned to approved dependencies                | Not yet the complete multi-artifact packet                         |
+| Authentication | Development identity locally; Auth0 OIDC with PKCE and opaque, revocable application sessions  | Live Auth0 tenant verification remains open                        |
+| Isolation      | Application authorization plus PostgreSQL row-level isolation and cross-engagement tests       | Sanitized customer data remains disabled                           |
+| Data lifecycle | Owner-controlled retention, export, permanent deletion, retry state, and content-free receipts | No legal holds or automatic retention enforcement yet              |
 
-This is an internal-alpha vertical slice, not a design-partner release. The current workflow representation is intentionally minimal, the economics module provides one deterministic base formula rather than sensitivity analysis, and the implementation packet is a single versioned Markdown specification rather than the full export set.
+## Architecture
 
-The API now derives database context from an explicit authenticated principal and enforces the
-`owner` / `operator` / `viewer` role matrix on every engagement route. Local identity is restricted
-to development, cannot access sanitized engagements, and is visibly not production authentication.
-ADR 0011 is accepted and Auth0 is the first production issuer. FastAPI completes authorization-code
-exchange with PKCE, verifies the OIDC identity, and issues a revocable opaque application session;
-only session digests are persisted and provider tokens never become browser state.
+AI-FDE is a modular monolith: one deployable product with explicit domain boundaries and a shared PostgreSQL transaction model. This keeps the system maintainable for a single founder while preserving seams that can be extracted later when measured scale requires it.
+
+```mermaid
+flowchart LR
+    FDE["Human FDE"] --> WEB["Next.js Operator Cockpit"]
+    WEB --> API["FastAPI application"]
+    AUTH["Auth0 OIDC"] --> API
+    API --> MOD["Domain modules"]
+    WORKER["Persistent worker"] --> MOD
+    MOD --> DB["PostgreSQL\nBusiness Twin, jobs, audit, RLS"]
+    MOD --> STORE["S3-compatible object storage\nimmutable evidence"]
+    DB --> WORKER
+```
+
+The approved V1 decisions are:
+
+- Next.js + FastAPI + PostgreSQL modular monolith.
+- PostgreSQL relational graph before a separate graph database.
+- PostgreSQL-backed persistent jobs and transactional outbox before a workflow platform.
+- Application authorization plus PostgreSQL row-level isolation.
+- API-managed OIDC with opaque, hash-only application sessions; Auth0 is the first issuer.
+
+See the [architecture decision index](docs/adr/README.md) for the full rationale.
+
+## Trust model
+
+The V1 implementation follows a few non-negotiable rules:
+
+- Evidence may create candidate claims; it cannot directly create verified truth.
+- Every material assertion must resolve to an exact evidence segment.
+- Human approval is authoritative at every V1 stage gate.
+- Contradictions and uncertainty are preserved rather than silently collapsed.
+- Approved versions are immutable; upstream changes make dependents stale instead of rewriting history.
+- Economic outputs are deterministic, reproducible, and explicit about the origin of every input.
+- Retrieved and uploaded content is treated as untrusted input.
+- Engagement access is enforced in the application and in PostgreSQL, with non-disclosing failures.
+- Demo fixtures, development identity, and deterministic extraction are visibly labeled and cannot be mistaken for production capability.
 
 ## Run locally
 
-Prerequisites are Docker Desktop, Python 3.13, `uv`, Node.js 20.9 or newer, and `pnpm`.
+### Prerequisites
+
+- Docker Desktop
+- Python 3.13
+- [`uv`](https://docs.astral.sh/uv/)
+- Node.js 20.9 or newer
+- [`pnpm`](https://pnpm.io/) 10
+
+### Start the stack
 
 ```bash
+cp .env.example .env
 make setup
 make infrastructure
 make migrate
@@ -55,20 +102,106 @@ make seed
 make dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The API is available at [http://localhost:8000/api/health](http://localhost:8000/api/health). `make seed` is idempotent for the local Acme fixture.
+`make seed` is idempotent and loads only the synthetic Acme Manufacturing fixture. `make dev` starts the API, persistent worker, and web application together.
 
-Run the quality gates with:
+| Service           | Local address                                                        |
+| ----------------- | -------------------------------------------------------------------- |
+| Operator Cockpit  | [http://localhost:3000](http://localhost:3000)                       |
+| API health        | [http://localhost:8000/api/health](http://localhost:8000/api/health) |
+| API documentation | [http://localhost:8000/docs](http://localhost:8000/docs)             |
+| PostgreSQL        | `localhost:55432`                                                    |
+| MinIO API         | `localhost:59000`                                                    |
+| MinIO console     | [http://localhost:59001](http://localhost:59001)                     |
+
+The default configuration uses a visibly labeled local development identity. It cannot run outside the development environment and cannot access sanitized engagements.
+
+## Walk the golden path
+
+1. Open the Operator Cockpit and select the seeded **Acme Manufacturing** engagement.
+2. Wait for the worker to process the two synthetic evidence assets.
+3. Review candidate claims alongside their exact source excerpts; accept or reject each claim.
+4. Inspect the verified Company Operating Model and resolve its blocking contradiction.
+5. Generate, review, and approve the current-state workflow.
+6. Review the Human / Software / AI allocation for each workflow step.
+7. Generate and approve the target-state workflow.
+8. Review the economic inputs, formula, and provenance labels; approve the business case.
+9. Generate the versioned implementation specification.
+10. As the engagement owner, set retention and download the portability archive. Permanent deletion is available only after the current state has been exported and all confirmation gates pass.
+
+This path is also exercised by the acceptance and isolation test suites.
+
+## Authentication modes
+
+| Mode          | Purpose                               | Configuration                                                                 |
+| ------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| `development` | Local synthetic-data development      | Default values in `.env.example`                                              |
+| `oidc`        | Production-oriented operator sessions | Auth0 issuer, client, secret, HTTPS/callback settings, and operator allowlist |
+
+The OIDC flow uses authorization code exchange with PKCE, state and nonce validation, provider-token verification, allowlisted enrollment, and a PostgreSQL-backed opaque application session. Provider tokens are never stored in browser state, and only session digests are persisted.
+
+Follow the [Auth0 operator authentication runbook](docs/runbooks/auth0-operator-authentication.md) before enabling OIDC. A successful contract test is not a substitute for live-tenant verification.
+
+## Data lifecycle
+
+Engagement owners can set an explicit retention deadline, create a deterministic portability export, and permanently delete engagement content. The export contains:
+
+- A manifest with counts, source fingerprint, and archive hash.
+- Structured JSON and YAML records.
+- Human-readable Markdown documentation and implementation specifications.
+- Original evidence files, revalidated against their stored hashes.
+
+Deletion requires a current export, an exact typed engagement name, explicit acknowledgement, and a non-blocking retention state. Database content and object-storage evidence are removed while a content-free deletion receipt remains for operational proof. See the [engagement data lifecycle runbook](docs/runbooks/engagement-data-lifecycle.md).
+
+## Quality gates
 
 ```bash
-make test
-make lint
-make acceptance
-pnpm build
+make test        # complete Python test suite
+make lint        # Ruff, mypy, ESLint, and TypeScript checks
+make acceptance  # golden-path and tenant-isolation suites
+pnpm build       # production Next.js build
+uv run alembic check
 ```
 
-The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. The Auth0 adapter and PostgreSQL-backed application session are implemented and covered by provider-contract and route tests; a real Auth0 tenant is still required for live-provider validation. Owner-controlled retention, deterministic JSON/YAML/Markdown export, original-evidence portability, permanent deletion, and content-free deletion receipts are implemented for the bounded V1 dataset. Broader parsing and model extraction, sensitivity analysis, automated retention enforcement, legal holds, and coding-agent execution are not yet implemented. Sanitized data remains blocked until live-provider validation and the complete readiness checklist pass.
+Database changes must also pass a clean upgrade, safe downgrade where supported, re-upgrade, and row-isolation verification.
 
-For provider setup and verification, see the [Auth0 operator authentication runbook](docs/runbooks/auth0-operator-authentication.md).
-For export and deletion operations, see the [engagement data lifecycle runbook](docs/runbooks/engagement-data-lifecycle.md).
+## Repository map
 
-See the [documentation index](docs/README.md) for the product and architecture sources of truth.
+```text
+apps/web/                  Next.js Operator Cockpit
+apps/api/                  FastAPI entrypoint
+apps/worker/               persistent-worker entrypoint
+src/ai_fde/modules/        domain-oriented application modules
+src/ai_fde/adapters/       database, object-storage, and provider adapters
+migrations/                ordered PostgreSQL migrations
+fixtures/acme/             explicitly synthetic evidence
+tests/acceptance/          complete lifecycle tests
+tests/isolation/           authorization and row-policy tests
+docs/                      product, architecture, ADRs, plans, and runbooks
+```
+
+The application and worker mutate state through the same domain services. Domain modules do not depend on the UI, and customer evidence, credentials, runtime databases, and real exports must never be committed.
+
+## Design-partner readiness
+
+The next release gate is hardening the proven slice, not expanding feature breadth:
+
+1. Validate login, callback, logout, and session revocation against the live Auth0 tenant.
+2. Complete the full keyboard and WCAG 2.2 AA pass for the golden path.
+3. Verify that normal telemetry contains references rather than raw evidence, secrets, or exported content.
+4. Rehearse setup and the complete lifecycle in a clean environment with a new operator.
+5. Select the deployment and production extraction providers through explicit architecture decisions.
+
+Sanitized customer data remains blocked until the relevant readiness checklist passes. Coding-agent execution, autonomous remediation, pilot execution, continuous ROI tracking, and higher autonomy levels remain post-V1 work.
+
+## Documentation
+
+Start with the [documentation index](docs/README.md). The primary sources of truth are:
+
+- [Product vision](docs/product/vision.md)
+- [V1 product requirements](docs/product/prd.md)
+- [System architecture](docs/architecture/system-architecture.md)
+- [Domain model](docs/architecture/domain-model.md)
+- [Company Operating Model schema](docs/architecture/company-operating-model.md)
+- [FDE lifecycle](docs/methodology/fde-lifecycle.md)
+- [Implementation roadmap](docs/roadmap/implementation-roadmap.md)
+- [Active V1 backlog](docs/backlog/initial-backlog.md)
