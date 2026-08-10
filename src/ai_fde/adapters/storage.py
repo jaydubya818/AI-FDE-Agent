@@ -13,6 +13,8 @@ class EvidenceStore(Protocol):
 
     def get(self, key: str) -> bytes: ...
 
+    def delete(self, key: str) -> None: ...
+
 
 class S3EvidenceStore:
     def __init__(self, settings: Settings) -> None:
@@ -44,6 +46,9 @@ class S3EvidenceStore:
         body: bytes = response["Body"].read()
         return body
 
+    def delete(self, key: str) -> None:
+        self._client.delete_object(Bucket=self._bucket, Key=key)
+
 
 class InMemoryEvidenceStore:
     def __init__(self) -> None:
@@ -54,3 +59,6 @@ class InMemoryEvidenceStore:
 
     def get(self, key: str) -> bytes:
         return self.objects[key]
+
+    def delete(self, key: str) -> None:
+        self.objects.pop(key, None)

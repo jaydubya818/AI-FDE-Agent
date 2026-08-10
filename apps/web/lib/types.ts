@@ -5,6 +5,8 @@ export type Engagement = {
   primary_outcome: string;
   lifecycle_stage: string;
   data_classification: "synthetic" | "sanitized";
+  data_lifecycle_status: "active" | "deletion_processing" | "deletion_failed";
+  retention_expires_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -182,4 +184,40 @@ export type ImplementationArtifact = {
   economic_case_id: string;
   source_assertion_ids: string[];
   generated_at: string;
+};
+
+export type EngagementExport = {
+  id: string;
+  schema_version: string;
+  source_fingerprint: string;
+  archive_hash: string;
+  byte_count: number;
+  record_count: number;
+  evidence_object_count: number;
+  exported_at: string;
+};
+
+export type EngagementDataLifecycle = {
+  status: "active" | "deletion_processing" | "deletion_failed";
+  retention_expires_at: string | null;
+  membership_role: "owner" | "operator" | "viewer";
+  latest_export: EngagementExport | null;
+  export_current: boolean;
+  retention_blocked: boolean;
+  can_delete: boolean;
+};
+
+export type EngagementDeletionReceipt = {
+  id: string;
+  engagement_id: string;
+  status: "processing" | "completed" | "failed";
+  data_classification: "synthetic" | "sanitized";
+  export_id: string;
+  source_fingerprint: string;
+  archive_hash: string;
+  database_row_count: number;
+  evidence_object_count: number;
+  failure_code: string | null;
+  requested_at: string;
+  completed_at: string | null;
 };

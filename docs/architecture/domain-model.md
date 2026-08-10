@@ -143,6 +143,8 @@ Only explicit completion or a terminal system condition ends a run.
 8. A WorkOrder run references an approved WorkOrder and sandbox policy version.
 9. Agent and tool mutations create audit records in the same transaction as domain state.
 10. Deletion and retention operations preserve required audit metadata without retaining prohibited content.
+11. Permanent engagement deletion requires a current portability export and preserves only a
+    content-free, operator-scoped receipt outside the engagement aggregate.
 
 ## 6. Domain Services
 

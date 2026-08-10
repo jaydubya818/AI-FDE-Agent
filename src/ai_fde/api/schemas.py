@@ -23,6 +23,8 @@ class EngagementResponse(BaseModel):
     primary_outcome: str
     lifecycle_stage: str
     data_classification: str
+    data_lifecycle_status: str
+    retention_expires_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -37,6 +39,55 @@ class AuthenticatedOperatorResponse(BaseModel):
     display_name: str
     auth_mode: str
     sanitized_data_allowed: bool
+
+
+class RetentionUpdateRequest(BaseModel):
+    retain_until: datetime
+
+
+class EngagementExportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    schema_version: str
+    source_fingerprint: str
+    archive_hash: str
+    byte_count: int
+    record_count: int
+    evidence_object_count: int
+    exported_at: datetime
+
+
+class EngagementDataLifecycleResponse(BaseModel):
+    status: str
+    retention_expires_at: datetime | None
+    membership_role: str
+    latest_export: EngagementExportResponse | None
+    export_current: bool
+    retention_blocked: bool
+    can_delete: bool
+
+
+class EngagementDeletionRequest(BaseModel):
+    export_id: UUID
+    confirmation_name: str = Field(min_length=2, max_length=255)
+
+
+class EngagementDeletionReceiptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    engagement_id: UUID
+    status: str
+    data_classification: str
+    export_id: UUID
+    source_fingerprint: str
+    archive_hash: str
+    database_row_count: int
+    evidence_object_count: int
+    failure_code: str | None
+    requested_at: datetime
+    completed_at: datetime | None
 
 
 class EvidenceResponse(BaseModel):

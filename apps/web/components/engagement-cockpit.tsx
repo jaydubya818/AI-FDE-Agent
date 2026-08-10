@@ -8,9 +8,11 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 
 import { AuthenticationRequired } from "@/components/authentication-required";
 import { Brand } from "@/components/brand";
+import { DataLifecycleWorkspace } from "@/components/data-lifecycle-workspace";
 import {
   CheckIcon,
   FileIcon,
@@ -36,6 +38,7 @@ import type {
   Claim,
   Contradiction,
   EngagementWorkspace,
+  EngagementDeletionReceipt,
   Evidence,
   OperatingModel,
 } from "@/lib/types";
@@ -93,6 +96,12 @@ const stages = [
     number: "07",
     label: "Specification",
     detail: "Engineering handoff",
+  },
+  {
+    id: "data-lifecycle",
+    number: "08",
+    label: "Data lifecycle",
+    detail: "Export & deletion",
   },
 ] as const;
 
@@ -152,6 +161,9 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [dataLifecycleReady, setDataLifecycleReady] = useState(false);
+  const [deletedReceipt, setDeletedReceipt] =
+    useState<EngagementDeletionReceipt | null>(null);
   const [lifecycleProgress, setLifecycleProgress] = useState({
     current: false,
     target: false,
@@ -161,6 +173,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const handleLifecycleProgress = useCallback(
     (progress: typeof lifecycleProgress) => setLifecycleProgress(progress),
+    [],
+  );
+  const handleDataLifecycleReady = useCallback(
+    (ready: boolean) => setDataLifecycleReady(ready),
     [],
   );
 
@@ -360,6 +376,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     return <AuthenticationRequired returnTo={`/engagements/${engagementId}`} />;
   }
 
+  if (deletedReceipt) {
+    return <DeletedWorkspace receipt={deletedReceipt} />;
+  }
+
   if (fatalError || !data) {
     return (
       <main className="grid min-h-screen place-items-center px-5">
@@ -417,7 +437,9 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                         ? lifecycleProgress.target
                         : stage.id === "economics"
                           ? lifecycleProgress.economics
-                          : lifecycleProgress.specification;
+                          : stage.id === "specification"
+                            ? lifecycleProgress.specification
+                            : dataLifecycleReady;
             return (
               <a
                 className="group grid grid-cols-[28px_1fr] gap-3 rounded-xl px-2 py-3 text-[var(--ink)] no-underline hover:bg-[var(--canvas)]"
@@ -813,6 +835,12 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             onProgress={handleLifecycleProgress}
           />
 
+          <DataLifecycleWorkspace
+            engagement={engagement}
+            onDeleted={setDeletedReceipt}
+            onReady={handleDataLifecycleReady}
+          />
+
           <section className="mt-14 rounded-2xl border border-[var(--line)] bg-[var(--ink)] p-6 text-white md:p-8">
             <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.13em] text-[#9dc8c2]">
               V1 boundary
@@ -829,6 +857,62 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
         </div>
       </div>
     </main>
+  );
+}
+
+function DeletedWorkspace({ receipt }: { receipt: EngagementDeletionReceipt }) {
+  return (
+    <main className="grid min-h-screen place-items-center px-5 py-12">
+      <section className="surface w-full max-w-3xl overflow-hidden rounded-[1.75rem]">
+        <div className="border-b border-[var(--teal)]/20 bg-[var(--teal-soft)] px-7 py-7 md:px-10">
+          <CheckIcon className="h-8 w-8 text-[var(--teal)]" />
+          <p className="eyebrow mt-5">Deletion verified</p>
+          <h1 className="display-font mt-2 text-4xl font-medium md:text-5xl">
+            Engagement data was permanently removed.
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--ink-soft)]">
+            Customer content is no longer available in AI-FDE. This page shows
+            only the content-free receipt retained for operational proof.
+          </p>
+        </div>
+        <div className="grid gap-6 px-7 py-7 md:grid-cols-2 md:px-10">
+          <ReceiptField label="Receipt ID" value={receipt.id} />
+          <ReceiptField label="Export ID" value={receipt.export_id} />
+          <ReceiptField
+            label="Database rows removed"
+            value={String(receipt.database_row_count)}
+          />
+          <ReceiptField
+            label="Evidence objects removed"
+            value={String(receipt.evidence_object_count)}
+          />
+          <div className="md:col-span-2">
+            <ReceiptField label="Export SHA-256" value={receipt.archive_hash} />
+          </div>
+        </div>
+        <div className="border-t border-[var(--line)] px-7 py-6 md:px-10">
+          <Link
+            className="inline-flex rounded-full bg-[var(--ink)] px-5 py-3 text-sm font-extrabold text-white no-underline"
+            href="/"
+          >
+            Return to engagements
+          </Link>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function ReceiptField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.11em] text-[var(--ink-soft)]">
+        {label}
+      </p>
+      <p className="mt-2 break-all font-mono text-xs font-bold text-[var(--ink)]">
+        {value}
+      </p>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -18,6 +18,7 @@ from fastapi import (
 from fastapi.responses import RedirectResponse
 
 from ai_fde.api.dependencies import (
+    EngagementOwnerDependency,
     EngagementReadDependency,
     EngagementWriteDependency,
     EvidenceStoreDependency,
@@ -37,6 +38,10 @@ from ai_fde.api.schemas import (
     EconomicCalculateRequest,
     EconomicCaseResponse,
     EngagementCreate,
+    EngagementDataLifecycleResponse,
+    EngagementDeletionReceiptResponse,
+    EngagementDeletionRequest,
+    EngagementExportResponse,
     EngagementResponse,
     EngagementWorkspaceResponse,
     EntityResponse,
@@ -46,6 +51,7 @@ from ai_fde.api.schemas import (
     OperatingModelResponse,
     OperatorNoteCreate,
     ProvenanceResponse,
+    RetentionUpdateRequest,
     WorkflowApproveRequest,
     WorkflowResponse,
     WorkflowStepResponse,
@@ -57,6 +63,16 @@ from ai_fde.modules.artifacts.service import (
     ArtifactStageGateError,
     generate_implementation_specification,
     get_latest_artifact,
+)
+from ai_fde.modules.data_lifecycle.service import (
+    DataLifecycleError,
+    DeletionExecutionError,
+    ExportGenerationError,
+    create_engagement_export,
+    delete_engagement_permanently,
+    export_is_current,
+    get_latest_export,
+    set_retention_deadline,
 )
 from ai_fde.modules.economics.service import (
     EconomicCaseNotFoundError,
@@ -296,6 +312,130 @@ def get_engagement_endpoint(
         engagement=EngagementResponse.model_validate(engagement),
         counts=get_engagement_counts(session, engagement_id),
     )
+
+
+@router.get(
+    "/engagements/{engagement_id}/data-lifecycle",
+    response_model=EngagementDataLifecycleResponse,
+)
+def get_engagement_data_lifecycle_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    access: EngagementReadDependency,
+) -> EngagementDataLifecycleResponse:
+    engagement = get_engagement(session, engagement_id)
+    latest_export = get_latest_export(session, engagement_id)
+    current = export_is_current(
+        session,
+        engagement_id=engagement_id,
+        export=latest_export,
+    )
+    now = datetime.now(UTC)
+    retention_blocked = (
+        engagement.retention_expires_at is not None and engagement.retention_expires_at > now
+    )
+    return EngagementDataLifecycleResponse(
+        status=engagement.data_lifecycle_status,
+        retention_expires_at=engagement.retention_expires_at,
+        membership_role=access.role,
+        latest_export=(
+            EngagementExportResponse.model_validate(latest_export)
+            if latest_export is not None
+            else None
+        ),
+        export_current=current,
+        retention_blocked=retention_blocked,
+        can_delete=(
+            access.role == "owner"
+            and engagement.data_lifecycle_status in {"active", "deletion_failed"}
+            and current
+            and not retention_blocked
+        ),
+    )
+
+
+@router.put(
+    "/engagements/{engagement_id}/data-lifecycle/retention",
+    response_model=EngagementResponse,
+)
+def update_engagement_retention_endpoint(
+    engagement_id: UUID,
+    payload: RetentionUpdateRequest,
+    session: SessionDependency,
+    operator: OperatorDependency,
+    _owner: EngagementOwnerDependency,
+) -> EngagementResponse:
+    engagement = get_engagement(session, engagement_id)
+    try:
+        updated = set_retention_deadline(
+            session,
+            engagement=engagement,
+            operator=operator,
+            retain_until=payload.retain_until,
+        )
+    except DataLifecycleError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return EngagementResponse.model_validate(updated)
+
+
+@router.post("/engagements/{engagement_id}/data-lifecycle/exports")
+def create_engagement_export_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    operator: OperatorDependency,
+    _owner: EngagementOwnerDependency,
+    store: EvidenceStoreDependency,
+) -> Response:
+    engagement = get_engagement(session, engagement_id)
+    try:
+        generated = create_engagement_export(
+            session,
+            store,
+            engagement_id=engagement_id,
+            operator=operator,
+        )
+    except DataLifecycleError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ExportGenerationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    filename = f"{engagement.slug}-ai-fde-export-{generated.record.id}.zip"
+    return Response(
+        content=generated.content,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "ETag": f'"{generated.record.archive_hash}"',
+            "X-AI-FDE-Export-ID": str(generated.record.id),
+        },
+    )
+
+
+@router.post(
+    "/engagements/{engagement_id}/data-lifecycle/deletion",
+    response_model=EngagementDeletionReceiptResponse,
+)
+def delete_engagement_endpoint(
+    engagement_id: UUID,
+    payload: EngagementDeletionRequest,
+    operator: OperatorDependency,
+    principal: PrincipalDependency,
+    _owner: EngagementOwnerDependency,
+    store: EvidenceStoreDependency,
+) -> EngagementDeletionReceiptResponse:
+    try:
+        receipt = delete_engagement_permanently(
+            store,
+            engagement_id=engagement_id,
+            operator_id=operator.id,
+            sanitized_data_allowed=principal.sanitized_data_allowed,
+            export_id=payload.export_id,
+            confirmation_name=payload.confirmation_name,
+        )
+    except DataLifecycleError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except DeletionExecutionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return EngagementDeletionReceiptResponse.model_validate(receipt)
 
 
 @router.post(

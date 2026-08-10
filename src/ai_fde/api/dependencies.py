@@ -88,6 +88,14 @@ def require_engagement_write(
     return _authorize_engagement(session, engagement_id, principal, "write")
 
 
+def require_engagement_owner(
+    engagement_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_principal)],
+) -> EngagementMember:
+    return _authorize_engagement(session, engagement_id, principal, "owner")
+
+
 def _authorize_engagement(
     session: Session,
     engagement_id: UUID,
@@ -118,5 +126,6 @@ OperatorDependency = Annotated[Operator, Depends(get_operator)]
 PrincipalDependency = Annotated[AuthenticatedPrincipal, Depends(get_principal)]
 EngagementReadDependency = Annotated[EngagementMember, Depends(require_engagement_read)]
 EngagementWriteDependency = Annotated[EngagementMember, Depends(require_engagement_write)]
+EngagementOwnerDependency = Annotated[EngagementMember, Depends(require_engagement_owner)]
 EvidenceStoreDependency = Annotated[EvidenceStore, Depends(get_evidence_store)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]

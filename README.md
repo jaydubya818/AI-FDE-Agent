@@ -27,6 +27,9 @@ Create engagement
   -> approve a separate target-state workflow
   -> calculate and approve a deterministic economic case
   -> generate a versioned implementation specification
+  -> set an explicit retention deadline
+  -> export a hash-verified portability archive
+  -> permanently delete engagement content with a content-free receipt
 ```
 
 The Acme extractor is deliberately deterministic and fixture-backed. It proves the operating path, provenance, contradiction handling, persistent jobs, model transition, stage gates, staleness, economics, and specification dependencies without presenting a demo parser as production AI capability.
@@ -63,8 +66,9 @@ make acceptance
 pnpm build
 ```
 
-The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. The Auth0 adapter and PostgreSQL-backed application session are implemented and covered by provider-contract and route tests; a real Auth0 tenant is still required for live-provider validation. Broader parsing and model extraction, sensitivity analysis, retention/export/deletion, and coding-agent execution are not yet implemented. Sanitized data remains blocked even for OIDC sessions until the data-lifecycle gate is complete.
+The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. The Auth0 adapter and PostgreSQL-backed application session are implemented and covered by provider-contract and route tests; a real Auth0 tenant is still required for live-provider validation. Owner-controlled retention, deterministic JSON/YAML/Markdown export, original-evidence portability, permanent deletion, and content-free deletion receipts are implemented for the bounded V1 dataset. Broader parsing and model extraction, sensitivity analysis, automated retention enforcement, legal holds, and coding-agent execution are not yet implemented. Sanitized data remains blocked until live-provider validation and the complete readiness checklist pass.
 
 For provider setup and verification, see the [Auth0 operator authentication runbook](docs/runbooks/auth0-operator-authentication.md).
+For export and deletion operations, see the [engagement data lifecycle runbook](docs/runbooks/engagement-data-lifecycle.md).
 
 See the [documentation index](docs/README.md) for the product and architecture sources of truth.

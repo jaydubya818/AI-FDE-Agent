@@ -105,6 +105,14 @@ class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "data_classification IN ('synthetic', 'sanitized')",
             name="valid_data_classification",
         ),
+        CheckConstraint(
+            "data_lifecycle_status IN ('active', 'deletion_processing', 'deletion_failed')",
+            name="valid_data_lifecycle_status",
+        ),
+        CheckConstraint(
+            "retention_expires_at IS NULL OR retention_expires_at > created_at",
+            name="valid_retention_expiry",
+        ),
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -114,9 +122,69 @@ class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     data_classification: Mapped[str] = mapped_column(
         String(32), nullable=False, default="synthetic"
     )
+    data_lifecycle_status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
     )
+
+
+class EngagementExport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "engagement_exports"
+    __table_args__ = (
+        CheckConstraint("byte_count >= 0", name="nonnegative_byte_count"),
+        CheckConstraint("record_count >= 0", name="nonnegative_record_count"),
+        CheckConstraint("evidence_object_count >= 0", name="nonnegative_evidence_object_count"),
+        Index("ix_engagement_exports_engagement_created", "engagement_id", "created_at"),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
+    )
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    archive_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    record_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_object_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    requested_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
+    )
+    exported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class EngagementDeletionReceipt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "engagement_deletion_receipts"
+    __table_args__ = (
+        UniqueConstraint("engagement_id", name="one_deletion_receipt_per_engagement"),
+        CheckConstraint("status IN ('processing', 'completed', 'failed')", name="valid_status"),
+        CheckConstraint(
+            "data_classification IN ('synthetic', 'sanitized')",
+            name="valid_data_classification",
+        ),
+        CheckConstraint("database_row_count >= 0", name="nonnegative_database_row_count"),
+        CheckConstraint("evidence_object_count >= 0", name="nonnegative_evidence_object_count"),
+        Index("ix_deletion_receipts_operator_created", "requested_by_id", "created_at"),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    requested_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="processing")
+    data_classification: Mapped[str] = mapped_column(String(32), nullable=False)
+    export_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    archive_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    database_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_object_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(120))
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EngagementMember(Base, UUIDPrimaryKeyMixin, TimestampMixin):

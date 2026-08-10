@@ -133,6 +133,10 @@ Generate versioned PRD, architecture, rules, controls, and evaluation plan. Impl
 
 Complete OIDC, row isolation, retention, deletion, accessibility, telemetry review, acceptance testing, and operator documentation.
 
+**Progress:** Auth0-backed opaque sessions, application/row authorization, and the bounded
+retention/export/deletion path are implemented. Live Auth0 verification, accessibility, telemetry,
+and clean-environment rehearsal remain.
+
 **Exit:** All PRD release criteria pass from a clean environment.
 
 ## Flow Analysis

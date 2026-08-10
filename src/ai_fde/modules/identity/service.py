@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ai_fde.models import Engagement, EngagementMember
 
-EngagementPermission = Literal["read", "write"]
+EngagementPermission = Literal["read", "write", "owner"]
 WRITE_ROLES = {"owner", "operator"}
 
 
@@ -46,4 +46,10 @@ def authorize_engagement(
         raise EngagementAccessNotFoundError(str(engagement_id))
     if permission == "write" and membership.role not in WRITE_ROLES:
         raise EngagementPermissionDeniedError("This engagement membership is read-only.")
+    if permission == "write" and engagement.data_lifecycle_status != "active":
+        raise EngagementPermissionDeniedError(
+            "Engagement data deletion is in progress; business mutations are blocked."
+        )
+    if permission == "owner" and membership.role != "owner":
+        raise EngagementPermissionDeniedError("Only the engagement owner can manage its data.")
     return membership

@@ -11,7 +11,8 @@
 - End-to-end slice: verified assertions now drive approved current and target workflows, a reproducible base economic case, and a dependency-pinned Markdown implementation specification.
 - Authorization foundation: an explicit request principal now drives the database RLS context; owner/operator/viewer permissions are enforced on every engagement route; outsiders receive non-disclosing 404s; development identity cannot access or create sanitized engagements.
 - Authentication slice: ADR 0011 is accepted, Auth0 is selected, and the opaque PostgreSQL-backed production session is implemented with PKCE, state/nonce validation, token verification, allowlisted enrollment, revocation, and provider-contract tests.
-- Next product slice: verify the flow against the deployment Auth0 tenant, then implement retention/export/deletion before accepting sanitized data.
+- Data-lifecycle slice: owner-controlled retention, deterministic JSON/YAML/Markdown plus original-evidence export, current-export deletion gates, object removal, retry state, and content-free receipts are implemented.
+- Next product slice: verify the flow against the deployment Auth0 tenant, complete accessibility and sensitive-telemetry review, and rehearse the clean-environment design-partner path. Sanitized data remains disabled until those gates pass.
 - Deferred post-V1 by product decision: ART-04 and Epic 8 coding-agent execution.
 
 ## Epic 0: Foundation Decisions
@@ -135,7 +136,7 @@
 | SEC-01 | P0 | Add OIDC and operator role | FND-06 | Implemented with Auth0 contract coverage; live-tenant verification remains |
 | SEC-02 | P0 | Add application authorization and PostgreSQL row policies | SEC-01, FND-04 | Default-deny policies protect all engagement-owned tables |
 | SEC-03 | P0 | Add cross-engagement isolation suite | SEC-02 | Read, write, job, export, search, and agent-tool attacks fail |
-| SEC-04 | P0 | Implement retention, export, and deletion state | EVD-02, SEC-02 | A test engagement can be exported and deleted per policy |
+| SEC-04 | P0 | Implement retention, export, and deletion state | EVD-02, SEC-02 | Implemented for the bounded V1 dataset with current-export, retention, isolation, failure-retry, and deletion-receipt tests |
 | QLT-01 | P0 | Add full golden-path acceptance suite | All P0 | Clean environment passes the PRD release criteria |
 | QLT-02 | P0 | Run accessibility and keyboard pass | All cockpit UI | Core flow meets documented WCAG 2.2 AA checks |
 | QLT-03 | P0 | Review telemetry for sensitive content | All runtime work | Normal logs contain references, not raw evidence or secrets |

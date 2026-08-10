@@ -2,6 +2,8 @@ import type {
   Claim,
   Contradiction,
   Engagement,
+  EngagementDataLifecycle,
+  EngagementDeletionReceipt,
   EngagementWorkspace,
   EconomicCase,
   Evidence,
@@ -39,19 +41,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
   });
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      detail?: string;
-    } | null;
-    throw new ApiError(
-      payload?.detail ?? "The operator service could not complete the request.",
-      response.status,
-    );
-  }
+  if (!response.ok) throw await responseError(response);
 
   if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
+}
+
+async function responseError(response: Response): Promise<ApiError> {
+  const payload = (await response.json().catch(() => null)) as {
+    detail?: string;
+  } | null;
+  return new ApiError(
+    payload?.detail ?? "The operator service could not complete the request.",
+    response.status,
+  );
 }
 
 export function getAuthenticatedOperator(): Promise<AuthenticatedOperator> {
@@ -88,6 +92,54 @@ export function getWorkspace(
   engagementId: string,
 ): Promise<EngagementWorkspace> {
   return request(`/engagements/${engagementId}`);
+}
+
+export function getEngagementDataLifecycle(
+  engagementId: string,
+): Promise<EngagementDataLifecycle> {
+  return request(`/engagements/${engagementId}/data-lifecycle`);
+}
+
+export function updateEngagementRetention(
+  engagementId: string,
+  retainUntil: string,
+): Promise<Engagement> {
+  return request(`/engagements/${engagementId}/data-lifecycle/retention`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ retain_until: retainUntil }),
+  });
+}
+
+export async function downloadEngagementExport(
+  engagementId: string,
+): Promise<{ blob: Blob; exportId: string; filename: string }> {
+  const response = await fetch(
+    `${API_URL}/engagements/${engagementId}/data-lifecycle/exports`,
+    {
+      method: "POST",
+      credentials: "include",
+    },
+  );
+  if (!response.ok) throw await responseError(response);
+  const exportId = response.headers.get("x-ai-fde-export-id");
+  if (!exportId) throw new ApiError("The export response was incomplete.", 502);
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const filename =
+    disposition.match(/filename="([^"]+)"/)?.[1] ??
+    `ai-fde-engagement-${exportId}.zip`;
+  return { blob: await response.blob(), exportId, filename };
+}
+
+export function deleteEngagementData(
+  engagementId: string,
+  payload: { export_id: string; confirmation_name: string },
+): Promise<EngagementDeletionReceipt> {
+  return request(`/engagements/${engagementId}/data-lifecycle/deletion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function listEvidence(engagementId: string): Promise<Evidence[]> {

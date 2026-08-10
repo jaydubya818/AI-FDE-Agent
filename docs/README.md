@@ -30,6 +30,7 @@
 ## Operations
 
 - [Auth0 operator authentication](runbooks/auth0-operator-authentication.md)
+- [Engagement data lifecycle](runbooks/engagement-data-lifecycle.md)
 
 ## References
 
