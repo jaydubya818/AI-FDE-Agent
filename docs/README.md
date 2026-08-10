@@ -27,6 +27,10 @@
 
 - [Architecture decision index](adr/README.md)
 
+## Operations
+
+- [Auth0 operator authentication](runbooks/auth0-operator-authentication.md)
+
 ## References
 
 - [Standards and external guidance](references/standards.md)

@@ -152,11 +152,11 @@ Exit gate:
 
 ## Week 7: Trust and Security Hardening
 
-**Status:** In progress — explicit principals, application role authorization, fail-closed local identity, and route/RLS isolation tests are implemented. Provider-backed OIDC, service identity, and sanitized-data lifecycle remain open.
+**Status:** In progress — explicit principals, application role authorization, fail-closed local identity, Auth0-backed opaque sessions, and route/RLS isolation tests are implemented. Live-tenant verification, service identity, and the sanitized-data lifecycle remain open.
 
 Build:
 
-- OIDC and operator role.
+- Verify the implemented OIDC/operator flow against the deployment Auth0 tenant.
 - Complete application authorization and PostgreSQL row-policy coverage.
 - Cross-engagement isolation across all V1 data paths.
 - Retention, export, and deletion workflow for sanitized engagement readiness.

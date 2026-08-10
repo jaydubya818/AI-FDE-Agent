@@ -10,11 +10,13 @@ from ai_fde.adapters.storage import S3EvidenceStore
 from ai_fde.api.routes import router
 from ai_fde.config import get_settings
 from ai_fde.db import ensure_local_operator
+from ai_fde.modules.identity.oidc import Auth0OIDCProvider
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     store = S3EvidenceStore(settings)
+    oidc_provider = Auth0OIDCProvider(settings) if settings.auth_mode == "oidc" else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -22,6 +24,7 @@ def create_app() -> FastAPI:
             ensure_local_operator(settings)
         store.ensure_bucket()
         app.state.evidence_store = store
+        app.state.oidc_provider = oidc_provider
         yield
 
     app = FastAPI(
@@ -33,7 +36,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
     )

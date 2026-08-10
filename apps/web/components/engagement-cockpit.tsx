@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 
+import { AuthenticationRequired } from "@/components/authentication-required";
 import { Brand } from "@/components/brand";
 import {
   CheckIcon,
@@ -20,6 +21,7 @@ import { LifecycleWorkspace } from "@/components/lifecycle-workspace";
 import {
   ApiError,
   createOperatorNote,
+  getAuthenticatedOperator,
   getOperatingModel,
   getWorkspace,
   listClaims,
@@ -29,6 +31,7 @@ import {
   reviewClaim,
   uploadEvidence,
 } from "@/lib/api";
+import type { AuthenticatedOperator } from "@/lib/api";
 import type {
   Claim,
   Contradiction,
@@ -38,6 +41,7 @@ import type {
 } from "@/lib/types";
 
 type WorkspaceData = {
+  operator: AuthenticatedOperator;
   workspace: EngagementWorkspace;
   evidence: Evidence[];
   claims: Claim[];
@@ -142,6 +146,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [uploading, setUploading] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -163,23 +168,37 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     async (quiet = false) => {
       if (!quiet) setLoading(true);
       try {
-        const [workspace, evidence, claims, contradictions, operatingModel] =
-          await Promise.all([
-            getWorkspace(engagementId),
-            listEvidence(engagementId),
-            listClaims(engagementId),
-            listContradictions(engagementId),
-            getOperatingModel(engagementId),
-          ]);
+        const [
+          operator,
+          workspace,
+          evidence,
+          claims,
+          contradictions,
+          operatingModel,
+        ] = await Promise.all([
+          getAuthenticatedOperator(),
+          getWorkspace(engagementId),
+          listEvidence(engagementId),
+          listClaims(engagementId),
+          listContradictions(engagementId),
+          getOperatingModel(engagementId),
+        ]);
         setData({
+          operator,
           workspace,
           evidence,
           claims,
           contradictions,
           operatingModel,
         });
+        setAuthenticationRequired(false);
         setFatalError(null);
       } catch (reason) {
+        if (reason instanceof ApiError && reason.status === 401) {
+          setAuthenticationRequired(true);
+          setFatalError(null);
+          return;
+        }
         if (!quiet) {
           setFatalError(
             reason instanceof Error
@@ -337,6 +356,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
 
   if (loading) return <LoadingWorkspace />;
 
+  if (authenticationRequired) {
+    return <AuthenticationRequired returnTo={`/engagements/${engagementId}`} />;
+  }
+
   if (fatalError || !data) {
     return (
       <main className="grid min-h-screen place-items-center px-5">
@@ -360,6 +383,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     );
   }
 
+  const { operator } = data;
   const { engagement, counts } = data.workspace;
 
   return (
@@ -424,8 +448,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             active
           </p>
           <p className="mt-2 text-[0.66rem] leading-5 text-[var(--ink-soft)]">
-            Application authorization plus PostgreSQL row policies. Local
-            development identity.
+            Application authorization plus PostgreSQL row policies.{" "}
+            {operator.auth_mode === "oidc"
+              ? "Verified production identity."
+              : "Local development identity."}
           </p>
         </div>
       </aside>
@@ -443,7 +469,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             </div>
             <div className="operator-session-indicator flex shrink-0 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-[0.66rem] font-extrabold text-[var(--ink-soft)]">
               <span className="status-dot text-[var(--teal)]" /> Operator
-              session
+              session · {operator.display_name}
             </div>
           </div>
         </header>

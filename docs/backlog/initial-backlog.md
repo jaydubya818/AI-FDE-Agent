@@ -7,10 +7,11 @@
 
 - Complete: FND-01 through FND-05, PLT-01/03/04/05/06/07/09, EVD-02/03/05/06/08, KNO-03/05/07, COM-02/07, WFL-01/03/05, DEC-03/04, ECO-01/02, ART-01/05, and the initial SEC-02/03 row-isolation foundation.
 - Working narrow implementations: WFL-02/04, ECO-04, and ART-02 prove the golden path but do not yet satisfy the full backlog acceptance language for workflow transitions, evidence editing, scenario sensitivity, or a multi-artifact packet.
-- Narrow V1 implementation: text and Markdown only; deterministic Acme extraction only; local development identity only.
+- Narrow V1 implementation: text and Markdown only; deterministic Acme extraction only; local development identity for local runs and an Auth0 production-session path awaiting live-tenant verification.
 - End-to-end slice: verified assertions now drive approved current and target workflows, a reproducible base economic case, and a dependency-pinned Markdown implementation specification.
 - Authorization foundation: an explicit request principal now drives the database RLS context; owner/operator/viewer permissions are enforced on every engagement route; outsiders receive non-disclosing 404s; development identity cannot access or create sanitized engagements.
-- Next product slice: approve ADR 0011, select and configure the first OIDC provider, implement the opaque production session, and then add retention/export/deletion before accepting sanitized data.
+- Authentication slice: ADR 0011 is accepted, Auth0 is selected, and the opaque PostgreSQL-backed production session is implemented with PKCE, state/nonce validation, token verification, allowlisted enrollment, revocation, and provider-contract tests.
+- Next product slice: verify the flow against the deployment Auth0 tenant, then implement retention/export/deletion before accepting sanitized data.
 - Deferred post-V1 by product decision: ART-04 and Epic 8 coding-agent execution.
 
 ## Epic 0: Foundation Decisions
@@ -22,7 +23,7 @@
 | FND-03 | P0 | Resolve ADR 0005 | PostgreSQL relational-graph approach is accepted or replaced |
 | FND-04 | P0 | Resolve ADR 0007 | Engagement-isolation strategy is accepted or replaced |
 | FND-05 | P0 | Resolve ADR 0008 | Persistent-job strategy is accepted or replaced |
-| FND-06 | P0 | Select deployment, OIDC, and production extraction providers | Each selection has a short ADR or amendment and a verified development path |
+| FND-06 | P0 | Select deployment, OIDC, and production extraction providers | OIDC selection is complete; deployment and production extraction selections still require a short ADR or amendment and verified development path |
 
 ## Epic 1: Platform Spine
 
@@ -131,7 +132,7 @@
 
 | ID | Priority | Item | Depends on | Acceptance |
 | --- | --- | --- | --- | --- |
-| SEC-01 | P0 | Add OIDC and operator role | FND-06 | Unauthenticated access fails; operator flow succeeds |
+| SEC-01 | P0 | Add OIDC and operator role | FND-06 | Implemented with Auth0 contract coverage; live-tenant verification remains |
 | SEC-02 | P0 | Add application authorization and PostgreSQL row policies | SEC-01, FND-04 | Default-deny policies protect all engagement-owned tables |
 | SEC-03 | P0 | Add cross-engagement isolation suite | SEC-02 | Read, write, job, export, search, and agent-tool attacks fail |
 | SEC-04 | P0 | Implement retention, export, and deletion state | EVD-02, SEC-02 | A test engagement can be exported and deleted per policy |

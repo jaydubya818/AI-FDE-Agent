@@ -1,6 +1,6 @@
 # ADR 0011: Terminate OIDC in the API with an Opaque Application Session
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-08
 
 ## Context
@@ -11,7 +11,7 @@ a security boundary. Provider access and ID tokens must not become browser appli
 
 ## Decision
 
-Use one configured OpenID Connect issuer per deployment. FastAPI acts as the confidential client,
+Use Auth0 as the first configured OpenID Connect issuer. FastAPI acts as the confidential client,
 uses the authorization-code flow with PKCE S256 and OIDC state/nonce validation, maps the verified
 issuer subject to an operator, and issues an opaque, revocable, HTTP-only application session.
 
@@ -23,13 +23,15 @@ cannot authorize sanitized data.
 ## Consequences
 
 - Provider tokens remain server-side and are not stored in browser JavaScript.
+- Auth0 is an adapter boundary; Auth0 organizations and roles do not replace AI-FDE engagement
+  membership or data ownership.
 - CORS must allow credentials only from explicit cockpit origins.
 - Session identifiers must be random, stored only as hashes, expire, support revocation, and rotate
   at authentication.
 - OIDC discovery, issuer, audience, signature, expiry, nonce, state, and redirect behavior require
   integration tests against the selected provider.
-- A specific OIDC provider and deployment callback remain an operational selection, not a domain
-  dependency.
+- Each environment requires an Auth0 Regular Web Application, exact callback/logout URLs, and an
+  explicit operator email allowlist. The stable identity key is issuer plus subject, never email.
 
 ## Alternatives
 

@@ -58,6 +58,38 @@ class Operator(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     external_subject: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class OIDCLoginAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "oidc_login_attempts"
+    __table_args__ = (
+        CheckConstraint("expires_at > created_at", name="valid_oidc_attempt_expiry"),
+        Index("ix_oidc_login_attempts_expires_at", "expires_at"),
+    )
+
+    state_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    nonce: Mapped[str] = mapped_column(String(128), nullable=False)
+    code_verifier: Mapped[str] = mapped_column(String(128), nullable=False)
+    redirect_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    return_to: Mapped[str] = mapped_column(String(1024), nullable=False, default="/")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class OperatorSession(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "operator_sessions"
+    __table_args__ = (
+        CheckConstraint("expires_at > authenticated_at", name="valid_operator_session_expiry"),
+        Index("ix_operator_sessions_operator_expires", "operator_id", "expires_at"),
+    )
+
+    token_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    operator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="CASCADE"), nullable=False
+    )
+    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):

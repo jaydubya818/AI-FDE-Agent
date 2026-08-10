@@ -25,10 +25,18 @@ export class ApiError extends Error {
   }
 }
 
+export type AuthenticatedOperator = {
+  id: string;
+  display_name: string;
+  auth_mode: "development" | "oidc";
+  sanitized_data_allowed: boolean;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
     ...init,
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -41,7 +49,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
 
+  if (response.status === 204) return undefined as T;
+
   return response.json() as Promise<T>;
+}
+
+export function getAuthenticatedOperator(): Promise<AuthenticatedOperator> {
+  return request("/auth/me");
+}
+
+export function getAuthLoginUrl(returnTo: string): string {
+  const url = new URL(`${API_URL}/auth/login`);
+  url.searchParams.set("return_to", returnTo);
+  return url.toString();
+}
+
+export function logoutOperator(): Promise<void> {
+  return request("/auth/logout", { method: "POST" });
 }
 
 export function listEngagements(): Promise<Engagement[]> {

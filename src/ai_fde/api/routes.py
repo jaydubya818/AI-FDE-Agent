@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
+from fastapi.responses import RedirectResponse
 
 from ai_fde.api.dependencies import (
     EngagementReadDependency,
@@ -13,6 +24,7 @@ from ai_fde.api.dependencies import (
     OperatorDependency,
     PrincipalDependency,
     SessionDependency,
+    SettingsDependency,
 )
 from ai_fde.api.schemas import (
     AssertionResponse,
@@ -65,6 +77,17 @@ from ai_fde.modules.evidence.service import (
     create_evidence_asset,
     list_evidence,
 )
+from ai_fde.modules.identity.oidc import OIDCProvider, OIDCProviderError
+from ai_fde.modules.identity.sessions import (
+    InvalidLoginAttemptError,
+    OperatorEnrollmentDeniedError,
+    consume_login_attempt,
+    create_login_attempt,
+    create_operator_session,
+    enroll_operator,
+    identity_session,
+    revoke_operator_session,
+)
 from ai_fde.modules.knowledge.contradictions import (
     ContradictionAlreadyResolvedError,
     ContradictionNotFoundError,
@@ -96,6 +119,116 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", service="ai-fde-api")
+
+
+@router.get("/auth/login", response_class=RedirectResponse)
+async def login_endpoint(
+    request: Request,
+    settings: SettingsDependency,
+    return_to: str = Query(default="/", max_length=1024),
+) -> RedirectResponse:
+    if settings.auth_mode != "oidc":
+        return RedirectResponse(settings.cockpit_url, status_code=status.HTTP_303_SEE_OTHER)
+    with identity_session() as session:
+        attempt = create_login_attempt(
+            session,
+            redirect_uri=settings.oidc_redirect_uri,
+            return_to=_validated_return_to(return_to),
+            ttl_seconds=settings.oidc_login_ttl_seconds,
+        )
+    try:
+        authorization_url = await _oidc_provider(request).build_authorization_url(
+            state=attempt.state,
+            nonce=attempt.nonce,
+            code_verifier=attempt.code_verifier,
+            redirect_uri=attempt.redirect_uri,
+        )
+    except OIDCProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The identity provider is unavailable.",
+        ) from exc
+    return RedirectResponse(authorization_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/auth/callback", response_class=RedirectResponse)
+async def auth_callback_endpoint(
+    request: Request,
+    settings: SettingsDependency,
+    code: str | None = Query(default=None),
+    state_value: str | None = Query(default=None, alias="state"),
+    provider_error: str | None = Query(default=None, alias="error"),
+) -> RedirectResponse:
+    if settings.auth_mode != "oidc":
+        raise HTTPException(status_code=404, detail="Authentication callback is not configured.")
+    if provider_error or not code or not state_value:
+        raise HTTPException(status_code=401, detail="Authentication was not completed.")
+    try:
+        with identity_session() as session:
+            attempt = consume_login_attempt(session, state_value)
+    except InvalidLoginAttemptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        identity = await _oidc_provider(request).exchange_code(
+            code=code,
+            code_verifier=attempt.code_verifier,
+            nonce=attempt.nonce,
+            redirect_uri=attempt.redirect_uri,
+        )
+    except OIDCProviderError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication could not be verified.",
+        ) from exc
+    try:
+        with identity_session() as session:
+            operator = enroll_operator(
+                session,
+                identity,
+                allowed_emails=settings.oidc_allowed_emails,
+            )
+            session_token = create_operator_session(
+                session,
+                operator=operator,
+                ttl_seconds=settings.session_ttl_seconds,
+            )
+    except OperatorEnrollmentDeniedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    destination = settings.cockpit_url.rstrip("/")
+    if attempt.return_to != "/":
+        destination = f"{destination}{attempt.return_to}"
+    response = RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        settings.session_cookie_name,
+        session_token,
+        max_age=settings.session_ttl_seconds,
+        httponly=True,
+        secure=settings.env != "development",
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
+@router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout_endpoint(
+    request: Request,
+    settings: SettingsDependency,
+) -> Response:
+    token = request.cookies.get(settings.session_cookie_name)
+    if token:
+        with identity_session() as session:
+            revoke_operator_session(session, token)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie(
+        settings.session_cookie_name,
+        path="/",
+        secure=settings.env != "development",
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @router.get("/auth/me", response_model=AuthenticatedOperatorResponse)
@@ -590,3 +723,25 @@ def _workflow_response(
             for step in list_workflow_steps(session, workflow.id)
         ],
     )
+
+
+def _oidc_provider(request: Request) -> OIDCProvider:
+    provider = getattr(request.app.state, "oidc_provider", None)
+    if provider is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The identity provider is not configured.",
+        )
+    return cast(OIDCProvider, provider)
+
+
+def _validated_return_to(value: str) -> str:
+    contains_control_character = any(ord(character) < 32 for character in value)
+    if (
+        not value.startswith("/")
+        or value.startswith("//")
+        or "\\" in value
+        or contains_control_character
+    ):
+        raise HTTPException(status_code=400, detail="The post-login path is invalid.")
+    return value

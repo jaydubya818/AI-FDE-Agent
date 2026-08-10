@@ -14,4 +14,4 @@ Accepted decisions are approved project direction. Proposed decisions must be co
 | [0008](0008-persistent-asynchronous-jobs.md) | Persistent jobs before a workflow platform | Accepted |
 | [0009](0009-synthetic-acme-before-customer-data.md) | Synthetic Acme before sanitized customer data | Accepted |
 | [0010](0010-one-workflow-six-to-eight-weeks.md) | One trustworthy workflow in 6–8 weeks | Accepted |
-| [0011](0011-api-managed-oidc-session.md) | API-managed OIDC with an opaque session | Proposed |
+| [0011](0011-api-managed-oidc-session.md) | API-managed OIDC with an opaque session | Accepted |

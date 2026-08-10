@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ai_fde.adapters.storage import EvidenceStore
@@ -18,6 +18,7 @@ from ai_fde.modules.identity.service import (
     EngagementPermissionDeniedError,
     authorize_engagement,
 )
+from ai_fde.modules.identity.sessions import identity_session, resolve_operator_session
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class AuthenticatedPrincipal:
 
 
 def get_principal(
+    request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthenticatedPrincipal:
     if settings.auth_mode == "development":
@@ -36,9 +38,20 @@ def get_principal(
             auth_mode="development",
             sanitized_data_allowed=False,
         )
+    token = request.cookies.get(settings.session_cookie_name)
+    if token:
+        with identity_session() as session:
+            operator_session = resolve_operator_session(session, token)
+            if operator_session is not None:
+                return AuthenticatedPrincipal(
+                    operator_id=operator_session.operator_id,
+                    auth_mode="oidc",
+                    sanitized_data_allowed=False,
+                )
     raise HTTPException(
-        status_code=503,
-        detail="OIDC authentication is configured but its provider adapter is not active.",
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication is required.",
+        headers={"WWW-Authenticate": "Cookie"},
     )
 
 
@@ -54,7 +67,7 @@ def get_operator(
     principal: Annotated[AuthenticatedPrincipal, Depends(get_principal)],
 ) -> Operator:
     operator = session.get(Operator, principal.operator_id)
-    if operator is None:
+    if operator is None or not operator.is_active:
         raise HTTPException(status_code=401, detail="The authenticated operator is not active.")
     return operator
 
@@ -106,3 +119,4 @@ PrincipalDependency = Annotated[AuthenticatedPrincipal, Depends(get_principal)]
 EngagementReadDependency = Annotated[EngagementMember, Depends(require_engagement_read)]
 EngagementWriteDependency = Annotated[EngagementMember, Depends(require_engagement_write)]
 EvidenceStoreDependency = Annotated[EvidenceStore, Depends(get_evidence_store)]
+SettingsDependency = Annotated[Settings, Depends(get_settings)]

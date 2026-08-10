@@ -10,8 +10,10 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "alembic>=1.18,<1.19",
+  "authlib>=1.7.2,<2",
   "boto3>=1.40,<2",
   "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.10,<3",
   "python-multipart>=0.0.20,<1",
@@ -21,7 +23,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-  "httpx>=0.28,<1",
   "mypy>=1.17,<2",
   "pytest>=8.4,<9",
   "pytest-cov>=6.2,<7",

@@ -36,6 +36,9 @@ This is an internal-alpha vertical slice, not a design-partner release. The curr
 The API now derives database context from an explicit authenticated principal and enforces the
 `owner` / `operator` / `viewer` role matrix on every engagement route. Local identity is restricted
 to development, cannot access sanitized engagements, and is visibly not production authentication.
+ADR 0011 is accepted and Auth0 is the first production issuer. FastAPI completes authorization-code
+exchange with PKCE, verifies the OIDC identity, and issues a revocable opaque application session;
+only session digests are persisted and provider tokens never become browser state.
 
 ## Run locally
 
@@ -60,6 +63,8 @@ make acceptance
 pnpm build
 ```
 
-The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. The provider-backed OIDC adapter and opaque session proposed in ADR 0011, broader parsing and model extraction, sensitivity analysis, retention/export/deletion, and coding-agent execution are not yet implemented. Sanitized data remains blocked.
+The local identity, synthetic classification, supported `.md`/`.txt` formats, deterministic extractor boundary, and calculated-versus-synthetic economic labels are visible in the cockpit. The Auth0 adapter and PostgreSQL-backed application session are implemented and covered by provider-contract and route tests; a real Auth0 tenant is still required for live-provider validation. Broader parsing and model extraction, sensitivity analysis, retention/export/deletion, and coding-agent execution are not yet implemented. Sanitized data remains blocked even for OIDC sessions until the data-lifecycle gate is complete.
+
+For provider setup and verification, see the [Auth0 operator authentication runbook](docs/runbooks/auth0-operator-authentication.md).
 
 See the [documentation index](docs/README.md) for the product and architecture sources of truth.
