@@ -11,9 +11,11 @@ from ai_fde.api.routes import router
 from ai_fde.config import get_settings
 from ai_fde.db import ensure_local_operator
 from ai_fde.modules.identity.oidc import Auth0OIDCProvider
+from ai_fde.telemetry import SafeAccessLogMiddleware, configure_access_logging
 
 
 def create_app() -> FastAPI:
+    configure_access_logging()
     settings = get_settings()
     store = S3EvidenceStore(settings)
     oidc_provider = Auth0OIDCProvider(settings) if settings.auth_mode == "oidc" else None
@@ -33,6 +35,7 @@ def create_app() -> FastAPI:
         description="Evidence-backed operating model for Forward Deployed Engineers.",
         lifespan=lifespan,
     )
+    app.add_middleware(SafeAccessLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,

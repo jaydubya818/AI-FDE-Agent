@@ -1,4 +1,4 @@
-.PHONY: setup infrastructure migrate dev seed test lint format acceptance
+.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness rehearse
 
 setup:
 	uv sync
@@ -31,3 +31,15 @@ format:
 
 acceptance:
 	uv run pytest tests/acceptance tests/isolation
+
+accessibility: infrastructure migrate seed
+	pnpm --dir apps/web test:a11y
+
+auth0-contract: infrastructure migrate
+	uv run pytest tests/unit/test_authentication_config.py tests/unit/test_oidc_provider.py tests/isolation/test_oidc_sessions.py
+
+auth0-readiness:
+	PYTHONPATH=src uv run python scripts/verify_auth0_configuration.py
+
+rehearse:
+	./scripts/rehearse-clean-environment.sh

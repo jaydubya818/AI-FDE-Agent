@@ -140,9 +140,16 @@ function statusStyle(status: Evidence["status"]) {
 
 function LoadingWorkspace() {
   return (
-    <main className="grid min-h-screen place-items-center">
-      <div className="text-center">
-        <span className="mx-auto mb-4 block h-10 w-10 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-[var(--teal)]" />
+    <main
+      className="grid min-h-screen place-items-center"
+      id="main-content"
+      tabIndex={-1}
+    >
+      <div aria-live="polite" className="text-center" role="status">
+        <span
+          aria-hidden="true"
+          className="mx-auto mb-4 block h-10 w-10 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-[var(--teal)]"
+        />
         <p className="text-sm font-bold text-[var(--ink-soft)]">
           Loading verified workspace…
         </p>
@@ -171,6 +178,8 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     specification: false,
   });
   const fileInput = useRef<HTMLInputElement>(null);
+  const noteToggle = useRef<HTMLButtonElement>(null);
+  const noteTitle = useRef<HTMLInputElement>(null);
   const handleLifecycleProgress = useCallback(
     (progress: typeof lifecycleProgress) => setLifecycleProgress(progress),
     [],
@@ -234,6 +243,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  useEffect(() => {
+    if (noteOpen) noteTitle.current?.focus();
+  }, [noteOpen]);
+
   const processingEvidence =
     data?.evidence.some(
       (item) => item.status === "queued" || item.status === "processing",
@@ -290,6 +303,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
       });
       event.currentTarget.reset();
       setNoteOpen(false);
+      window.setTimeout(() => noteToggle.current?.focus(), 0);
       setNotice({
         tone: "success",
         text: "The operator note was preserved as evidence and queued for extraction.",
@@ -382,7 +396,11 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
 
   if (fatalError || !data) {
     return (
-      <main className="grid min-h-screen place-items-center px-5">
+      <main
+        className="grid min-h-screen place-items-center px-5"
+        id="main-content"
+        tabIndex={-1}
+      >
         <section className="surface max-w-xl rounded-2xl p-9 text-center">
           <p className="eyebrow">Unable to open engagement</p>
           <h1 className="display-font mt-3 text-4xl font-medium">
@@ -407,8 +425,11 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   const { engagement, counts } = data.workspace;
 
   return (
-    <main className="cockpit-shell grid min-h-screen grid-cols-[248px_1fr]">
-      <aside className="cockpit-rail sticky top-0 flex h-screen w-[248px] flex-col border-r border-[var(--line)] bg-[var(--paper)] px-5 py-6">
+    <div className="cockpit-shell grid min-h-screen grid-cols-[248px_1fr]">
+      <aside
+        aria-label="Engagement navigation"
+        className="cockpit-rail sticky top-0 flex h-screen w-[248px] flex-col border-r border-[var(--line)] bg-[var(--paper)] px-5 py-6"
+      >
         <Brand />
         <div className="cockpit-engagement-context mt-10 border-y border-[var(--line)] py-5">
           <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.13em] text-[var(--ink-soft)]">
@@ -442,6 +463,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                             : dataLifecycleReady;
             return (
               <a
+                aria-label={`${stage.number}. ${stage.label}: ${stage.detail}, ${complete ? "complete" : "incomplete"}`}
                 className="group grid grid-cols-[28px_1fr] gap-3 rounded-xl px-2 py-3 text-[var(--ink)] no-underline hover:bg-[var(--canvas)]"
                 href={`#${stage.id}`}
                 key={stage.id}
@@ -478,7 +500,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
         </div>
       </aside>
 
-      <div className="min-w-0">
+      <main className="min-w-0" id="main-content" tabIndex={-1}>
         <header className="border-b border-[var(--line)] bg-[rgba(243,240,232,0.78)] px-5 py-4 backdrop-blur md:px-8">
           <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-5">
             <div className="min-w-0 flex-1">
@@ -626,8 +648,11 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                   </button>
                 </div>
                 <button
+                  aria-controls="operator-note-form"
+                  aria-expanded={noteOpen}
                   className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-xs font-extrabold text-[var(--ink)]"
                   onClick={() => setNoteOpen((value) => !value)}
+                  ref={noteToggle}
                   type="button"
                 >
                   {noteOpen
@@ -637,6 +662,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                 {noteOpen && (
                   <form
                     className="surface grid gap-3 rounded-2xl p-5"
+                    id="operator-note-form"
                     onSubmit={handleNote}
                   >
                     <label className="grid gap-1.5 text-[0.65rem] font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
@@ -645,6 +671,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                         className="rounded-lg border border-[var(--line)] bg-white px-3 py-2.5 text-xs font-semibold normal-case tracking-normal text-[var(--ink)]"
                         minLength={2}
                         name="title"
+                        ref={noteTitle}
                         required
                       />
                     </label>
@@ -855,14 +882,18 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             </p>
           </section>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
 function DeletedWorkspace({ receipt }: { receipt: EngagementDeletionReceipt }) {
   return (
-    <main className="grid min-h-screen place-items-center px-5 py-12">
+    <main
+      className="grid min-h-screen place-items-center px-5 py-12"
+      id="main-content"
+      tabIndex={-1}
+    >
       <section className="surface w-full max-w-3xl overflow-hidden rounded-[1.75rem]">
         <div className="border-b border-[var(--teal)]/20 bg-[var(--teal-soft)] px-7 py-7 md:px-10">
           <CheckIcon className="h-8 w-8 text-[var(--teal)]" />
@@ -1021,6 +1052,7 @@ function ClaimCard({
           (recommended for rejection)
         </span>
         <textarea
+          aria-label={`Decision note for: ${claim.summary}`}
           className="min-h-20 resize-y rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-xs font-semibold leading-5 normal-case tracking-normal text-[var(--ink)]"
           disabled={busy}
           onChange={(event) => setReason(event.target.value)}
@@ -1095,6 +1127,7 @@ function ContradictionCard({
           <label className="grid gap-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.08em] text-[var(--red)]">
             Classification
             <select
+              aria-label={`Classification for contradiction: ${contradiction.summary}`}
               className="rounded-lg border border-[var(--red)]/20 bg-white px-3 py-2.5 text-xs font-bold normal-case tracking-normal text-[var(--ink)]"
               disabled={busy}
               onChange={(event) =>
@@ -1111,6 +1144,7 @@ function ContradictionCard({
           <label className="grid gap-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.08em] text-[var(--red)]">
             Operator reason
             <input
+              aria-label={`Operator reason for contradiction: ${contradiction.summary}`}
               className="rounded-lg border border-[var(--red)]/20 bg-white px-3 py-2.5 text-xs font-semibold normal-case tracking-normal text-[var(--ink)]"
               disabled={busy}
               minLength={5}

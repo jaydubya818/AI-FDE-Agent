@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import signal
 import time
+from dataclasses import dataclass
 from uuid import UUID
 
 from ai_fde.adapters.storage import S3EvidenceStore
@@ -10,10 +11,39 @@ from ai_fde.config import get_settings
 from ai_fde.db import ensure_local_operator, operator_session
 from ai_fde.models import Job
 from ai_fde.modules.engagements.service import list_engagements
-from ai_fde.modules.knowledge.jobs import fail_job, lease_next_job, process_job
+from ai_fde.modules.evidence.parser import UnsupportedEvidenceTypeError
+from ai_fde.modules.knowledge.jobs import (
+    JobProcessingError,
+    fail_job,
+    lease_next_job,
+    process_job,
+)
 
 logger = logging.getLogger("ai_fde.worker")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+
+@dataclass(frozen=True)
+class PublicJobFailure:
+    code: str
+    message: str
+
+
+def public_job_failure(error: Exception) -> PublicJobFailure:
+    if isinstance(error, UnsupportedEvidenceTypeError):
+        return PublicJobFailure(
+            code="unsupported_evidence_type",
+            message="Evidence must be a supported UTF-8 text or Markdown file.",
+        )
+    if isinstance(error, JobProcessingError):
+        return PublicJobFailure(
+            code="invalid_evidence_job",
+            message="Evidence processing could not be completed because the job is invalid.",
+        )
+    return PublicJobFailure(
+        code="evidence_processing_failed",
+        message="Evidence processing could not be completed.",
+    )
 
 
 class Worker:
@@ -54,9 +84,10 @@ class Worker:
                     process_job(session, self.store, job)
                 logger.info("Completed job %s", job_id)
             except Exception as exc:  # noqa: BLE001 - boundary records all job failures
-                logger.exception("Job %s failed", job_id)
+                failure = public_job_failure(exc)
+                logger.error("Job failed job_id=%s failure_code=%s", job_id, failure.code)
                 with operator_session(self.settings.operator_id) as session:
-                    fail_job(session, job_id, str(exc))
+                    fail_job(session, job_id, failure.message)
             return True
         return False
 

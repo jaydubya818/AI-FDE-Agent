@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { AuthenticationRequired } from "@/components/authentication-required";
 import { Brand } from "@/components/brand";
@@ -34,6 +34,8 @@ export default function EngagementsPage() {
   const [error, setError] = useState<string | null>(null);
   const [operator, setOperator] = useState<AuthenticatedOperator | null>(null);
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
+  const createButton = useRef<HTMLButtonElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getAuthenticatedOperator()
@@ -54,6 +56,15 @@ export default function EngagementsPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (showForm) nameInput.current?.focus();
+  }, [showForm]);
+
+  function closeCreateForm() {
+    setShowForm(false);
+    window.setTimeout(() => createButton.current?.focus(), 0);
+  }
 
   async function handleLogout() {
     try {
@@ -98,7 +109,11 @@ export default function EngagementsPage() {
   }
 
   return (
-    <main className="min-h-screen px-5 py-5 md:px-10 md:py-8">
+    <main
+      className="min-h-screen px-5 py-5 md:px-10 md:py-8"
+      id="main-content"
+      tabIndex={-1}
+    >
       <header className="mx-auto flex max-w-[1240px] items-center justify-between">
         <Brand />
         <div className="flex items-center gap-3">
@@ -135,8 +150,11 @@ export default function EngagementsPage() {
           </p>
           <div className="mt-7 flex gap-3">
             <button
+              aria-controls="new-engagement-form"
+              aria-expanded={showForm}
               className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5"
               onClick={() => setShowForm(true)}
+              ref={createButton}
               type="button"
             >
               <PlusIcon /> New engagement
@@ -155,11 +173,18 @@ export default function EngagementsPage() {
       )}
 
       {showForm && (
-        <section className="surface mx-auto mb-8 max-w-[1240px] rounded-2xl p-6 md:p-8">
+        <section
+          aria-labelledby="new-engagement-heading"
+          className="surface mx-auto mb-8 max-w-[1240px] rounded-2xl p-6 md:p-8"
+          id="new-engagement-form"
+        >
           <div className="grid gap-8 lg:grid-cols-[0.55fr_1fr]">
             <div>
               <p className="eyebrow">New workspace</p>
-              <h2 className="display-font mt-3 text-3xl font-medium">
+              <h2
+                className="display-font mt-3 text-3xl font-medium"
+                id="new-engagement-heading"
+              >
                 Frame the engagement.
               </h2>
               <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">
@@ -176,6 +201,7 @@ export default function EngagementsPage() {
                   minLength={2}
                   name="name"
                   placeholder="e.g. Acme Manufacturing"
+                  ref={nameInput}
                   required
                 />
               </label>
@@ -197,7 +223,7 @@ export default function EngagementsPage() {
                 <div className="flex gap-3">
                   <button
                     className="rounded-full border border-[var(--line-strong)] px-5 py-3 text-sm font-bold"
-                    onClick={() => setShowForm(false)}
+                    onClick={closeCreateForm}
                     type="button"
                   >
                     Cancel

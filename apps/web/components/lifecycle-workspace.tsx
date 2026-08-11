@@ -187,9 +187,28 @@ export function LifecycleWorkspace({
     );
   }
 
+  async function handleCopySpecification(content: string) {
+    try {
+      await navigator.clipboard.writeText(content);
+      setNotice({
+        tone: "success",
+        text: "The implementation specification was copied to the clipboard.",
+      });
+    } catch {
+      setNotice({
+        tone: "error",
+        text: "The browser could not copy the implementation specification.",
+      });
+    }
+  }
+
   if (loading) {
     return (
-      <div className="surface mt-8 rounded-2xl p-8 text-sm font-bold text-[var(--ink-soft)]">
+      <div
+        aria-live="polite"
+        className="surface mt-8 rounded-2xl p-8 text-sm font-bold text-[var(--ink-soft)]"
+        role="status"
+      >
         Loading workflow and economic state…
       </div>
     );
@@ -197,7 +216,10 @@ export function LifecycleWorkspace({
 
   if (!data) {
     return (
-      <div className="mt-8 rounded-2xl border border-[var(--red)]/25 bg-[var(--red-soft)] p-6 text-sm font-bold text-[var(--red)]">
+      <div
+        className="mt-8 rounded-2xl border border-[var(--red)]/25 bg-[var(--red-soft)] p-6 text-sm font-bold text-[var(--red)]"
+        role="alert"
+      >
         Lifecycle state is unavailable. Check the API and retry.
       </div>
     );
@@ -388,6 +410,7 @@ export function LifecycleWorkspace({
                       {field.label}
                       <span className="grid grid-cols-[1fr_auto] items-center rounded-lg border border-[var(--line)] bg-white">
                         <input
+                          aria-label={`${field.label}, ${field.unit}`}
                           className="min-w-0 bg-transparent px-3 py-2.5 text-xs font-bold normal-case tracking-normal text-[var(--ink)] outline-none"
                           min="0"
                           onChange={(event) =>
@@ -412,6 +435,7 @@ export function LifecycleWorkspace({
                     <label className="grid gap-1 text-[0.62rem] font-extrabold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
                       Evidence
                       <select
+                        aria-label={`${field.label} evidence classification`}
                         className="rounded-lg border border-[var(--line)] bg-white px-2 py-2.5 text-xs font-bold normal-case tracking-normal text-[var(--ink)]"
                         onChange={(event) =>
                           setEconomicDraft((currentDraft) => ({
@@ -514,14 +538,18 @@ export function LifecycleWorkspace({
               <button
                 className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-xs font-extrabold"
                 onClick={() =>
-                  navigator.clipboard.writeText(data.artifact!.content)
+                  void handleCopySpecification(data.artifact!.content)
                 }
                 type="button"
               >
                 Copy Markdown
               </button>
             </div>
-            <pre className="max-h-[680px] overflow-auto whitespace-pre-wrap bg-[#102328] p-5 font-mono text-[0.72rem] leading-6 text-[#e7eee9]">
+            <pre
+              aria-label="Generated implementation specification Markdown"
+              className="max-h-[680px] overflow-auto whitespace-pre-wrap bg-[#102328] p-5 font-mono text-[0.72rem] leading-6 text-[#e7eee9]"
+              tabIndex={0}
+            >
               {data.artifact.content}
             </pre>
           </div>
@@ -610,7 +638,7 @@ function WorkflowPanel({
     <div className="surface mt-5 overflow-hidden rounded-2xl">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
         <div>
-          <p className="text-sm font-extrabold">{workflow.name}</p>
+          <h3 className="text-sm font-extrabold">{workflow.name}</h3>
           <p className="mt-1 text-[0.62rem] font-bold uppercase tracking-[0.09em] text-[var(--ink-soft)]">
             Version {workflow.version_number} · {workflow.generated_by}{" "}
             generated
@@ -648,7 +676,7 @@ function WorkflowStepView({ step }: { step: WorkflowStep }) {
         {step.position}
       </span>
       <div>
-        <p className="text-sm font-extrabold">{step.name}</p>
+        <h4 className="text-sm font-extrabold">{step.name}</h4>
         <p className="mt-1 text-xs leading-5 text-[var(--ink-soft)]">
           {step.description}
         </p>
@@ -684,8 +712,10 @@ function TargetStepEditor({
   const [rationale, setRationale] = useState(step.rationale);
   const [controls, setControls] = useState(step.controls.join("; "));
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   async function save() {
     setSaving(true);
+    setSaveStatus(null);
     try {
       await updateWorkflowStep(engagementId, workflowId, step.id, {
         allocation,
@@ -696,6 +726,7 @@ function TargetStepEditor({
           .filter(Boolean),
       });
       await onSaved?.();
+      setSaveStatus(`Allocation saved for ${step.name}.`);
     } finally {
       setSaving(false);
     }
@@ -706,7 +737,7 @@ function TargetStepEditor({
         {step.position}
       </span>
       <div>
-        <p className="text-sm font-extrabold">{step.name}</p>
+        <h4 className="text-sm font-extrabold">{step.name}</h4>
         <p className="mt-1 text-xs leading-5 text-[var(--ink-soft)]">
           {step.description}
         </p>
@@ -719,6 +750,7 @@ function TargetStepEditor({
         <label className="grid gap-1 text-[0.6rem] font-extrabold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
           Allocation
           <select
+            aria-label={`Allocation for ${step.name}`}
             className="rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-xs font-bold normal-case tracking-normal text-[var(--ink)]"
             onChange={(event) =>
               setAllocation(event.target.value as WorkflowStep["allocation"])
@@ -734,6 +766,7 @@ function TargetStepEditor({
         <label className="grid gap-1 text-[0.6rem] font-extrabold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
           Rationale
           <textarea
+            aria-label={`Rationale for ${step.name}`}
             className="min-h-16 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold normal-case leading-5 tracking-normal text-[var(--ink)]"
             onChange={(event) => setRationale(event.target.value)}
             value={rationale}
@@ -742,6 +775,7 @@ function TargetStepEditor({
         <label className="grid gap-1 text-[0.6rem] font-extrabold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
           Controls · separate with semicolons
           <input
+            aria-label={`Controls for ${step.name}; separate with semicolons`}
             className="rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold normal-case tracking-normal text-[var(--ink)]"
             onChange={(event) => setControls(event.target.value)}
             value={controls}
@@ -755,6 +789,11 @@ function TargetStepEditor({
         >
           {saving ? "Saving…" : "Save allocation"}
         </button>
+        {saveStatus && (
+          <p className="text-xs font-bold text-[var(--teal)]" role="status">
+            {saveStatus}
+          </p>
+        )}
       </div>
     </article>
   );

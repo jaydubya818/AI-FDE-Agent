@@ -158,6 +158,8 @@ Deletion requires a current export, an exact typed engagement name, explicit ack
 make test        # complete Python test suite
 make lint        # Ruff, mypy, ESLint, and TypeScript checks
 make acceptance  # golden-path and tenant-isolation suites
+make accessibility # WCAG 2.2 AA axe and keyboard regression suite
+make rehearse     # isolated clean-environment build and test rehearsal
 pnpm build       # production Next.js build
 uv run alembic check
 ```
@@ -183,13 +185,14 @@ The application and worker mutate state through the same domain services. Domain
 
 ## Design-partner readiness
 
-The next release gate is hardening the proven slice, not expanding feature breadth:
+The design-partner hardening status is:
 
-1. Validate login, callback, logout, and session revocation against the live Auth0 tenant.
-2. Complete the full keyboard and WCAG 2.2 AA pass for the golden path.
-3. Verify that normal telemetry contains references rather than raw evidence, secrets, or exported content.
-4. Rehearse setup and the complete lifecycle in a clean environment with a new operator.
-5. Select the deployment and production extraction providers through explicit architecture decisions.
+1. Keyboard and automated WCAG 2.2 AA coverage is implemented for the golden cockpit workflow.
+2. Application access and worker telemetry is metadata-only, with regression tests and a documented audit.
+3. Auth0 contract coverage and a live validation checklist are implemented; live-tenant execution still requires environment credentials.
+4. ADR 0012 proposes the production worker service identity and least-privilege membership model.
+5. The isolated clean-environment rehearsal and FDE onboarding checklist are runnable and documented.
+6. ADRs 0013 and 0014 propose AWS Fargate/RDS/S3 and Amazon Bedrock as the first production providers.
 
 Sanitized customer data remains blocked until the relevant readiness checklist passes. Coding-agent execution, autonomous remediation, pilot execution, continuous ROI tracking, and higher autonomy levels remain post-V1 work.
 

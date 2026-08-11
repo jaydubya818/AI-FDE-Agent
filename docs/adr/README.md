@@ -15,3 +15,6 @@ Accepted decisions are approved project direction. Proposed decisions must be co
 | [0009](0009-synthetic-acme-before-customer-data.md) | Synthetic Acme before sanitized customer data | Accepted |
 | [0010](0010-one-workflow-six-to-eight-weeks.md) | One trustworthy workflow in 6–8 weeks | Accepted |
 | [0011](0011-api-managed-oidc-session.md) | API-managed OIDC with an opaque session | Accepted |
+| [0012](0012-production-worker-service-identity.md) | Dedicated production worker service identity | Proposed |
+| [0013](0013-aws-design-partner-deployment.md) | AWS design-partner deployment | Proposed |
+| [0014](0014-bedrock-production-extraction.md) | Amazon Bedrock production extraction | Proposed |

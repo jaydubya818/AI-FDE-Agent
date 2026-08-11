@@ -4,7 +4,11 @@ import { getAuthLoginUrl } from "@/lib/api";
 
 export function AuthenticationRequired({ returnTo }: { returnTo: string }) {
   return (
-    <main className="min-h-screen px-5 py-5 md:px-10 md:py-8">
+    <main
+      className="min-h-screen px-5 py-5 md:px-10 md:py-8"
+      id="main-content"
+      tabIndex={-1}
+    >
       <header className="mx-auto flex max-w-[1120px] items-center justify-between">
         <Brand />
         <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-xs font-bold text-[var(--ink-soft)]">

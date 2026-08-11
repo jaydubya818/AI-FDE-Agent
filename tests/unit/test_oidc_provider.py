@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
@@ -95,6 +95,37 @@ def test_auth0_provider_exchanges_code_and_verifies_id_token() -> None:
     assert identity.subject == "auth0|operator-123"
     assert identity.email == "fde@example.com"
     assert identity.display_name == "Design Partner FDE"
+
+
+def test_auth0_provider_builds_pkce_authorization_request() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/.well-known/openid-configuration"
+        return httpx.Response(
+            200,
+            json={
+                "issuer": ISSUER,
+                "authorization_endpoint": f"{ISSUER}authorize",
+                "token_endpoint": f"{ISSUER}oauth/token",
+                "jwks_uri": f"{ISSUER}.well-known/jwks.json",
+            },
+        )
+
+    provider = Auth0OIDCProvider(_settings(), transport=httpx.MockTransport(handler))
+    authorization_url = asyncio.run(
+        provider.build_authorization_url(
+            state="verified-state",
+            nonce=NONCE,
+            code_verifier="verified-code-verifier",
+            redirect_uri="http://localhost:8000/api/auth/callback",
+        )
+    )
+    query = parse_qs(urlparse(authorization_url).query)
+
+    assert query["response_type"] == ["code"]
+    assert query["state"] == ["verified-state"]
+    assert query["nonce"] == [NONCE]
+    assert query["code_challenge_method"] == ["S256"]
+    assert query["scope"] == ["openid profile email"]
 
 
 def test_id_token_rejects_wrong_nonce() -> None:

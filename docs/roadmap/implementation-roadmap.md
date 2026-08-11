@@ -152,7 +152,10 @@ Exit gate:
 
 ## Week 7: Trust and Security Hardening
 
-**Status:** In progress — explicit principals, application role authorization, fail-closed local identity, Auth0-backed opaque sessions, route/RLS isolation tests, and the bounded retention/export/deletion lifecycle are implemented. Live-tenant verification, service identity, accessibility, and sensitive-telemetry review remain open.
+**Status:** In progress — explicit principals, application role authorization, fail-closed local
+identity, Auth0-backed opaque sessions, route/RLS isolation tests, bounded retention/export/
+deletion, and metadata-only telemetry are implemented. Live-tenant verification and implementation
+of the proposed worker service identity remain open.
 
 Build:
 
@@ -172,6 +175,10 @@ Exit gate:
 - The sanitized-data handling path is documented and testable.
 
 ## Week 8: Trust, Security, and Design-Partner Hardening
+
+**Status:** In progress — accessibility, clean-environment rehearsal, onboarding documentation,
+and provider-selection ADRs are complete. Live Auth0 execution and acceptance of ADRs 0012–0014
+remain release gates.
 
 Build:
 

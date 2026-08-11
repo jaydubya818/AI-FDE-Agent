@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "55432:5432"
+      - "${AI_FDE_POSTGRES_HOST_PORT:-55432}:5432"
     volumes:
       - ai_fde_postgres:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -26,8 +26,8 @@ services:
       MINIO_ROOT_USER: ai-fde-dev
       MINIO_ROOT_PASSWORD: ai-fde-dev-secret
     ports:
-      - "59000:9000"
-      - "59001:9001"
+      - "${AI_FDE_MINIO_API_HOST_PORT:-59000}:9000"
+      - "${AI_FDE_MINIO_CONSOLE_HOST_PORT:-59001}:9001"
     volumes:
       - ai_fde_minio:/data
 

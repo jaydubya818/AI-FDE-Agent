@@ -164,11 +164,19 @@ export function DataLifecycleWorkspace({
   const confirmationMatches = confirmation === engagement.name;
 
   return (
-    <section className="mt-14 scroll-mt-6" id="data-lifecycle">
+    <section
+      aria-busy={loading}
+      aria-labelledby="data-lifecycle-heading"
+      className="mt-14 scroll-mt-6"
+      id="data-lifecycle"
+    >
       <div className="grid gap-3 border-t border-[var(--line-strong)] pt-5 lg:grid-cols-[0.75fr_1fr] lg:items-end">
         <div>
           <p className="eyebrow">08 / Data stewardship</p>
-          <h2 className="display-font mt-2 text-3xl font-medium tracking-[-0.025em] md:text-4xl">
+          <h2
+            className="display-font mt-2 text-3xl font-medium tracking-[-0.025em] md:text-4xl"
+            id="data-lifecycle-heading"
+          >
             Retention, export & deletion
           </h2>
         </div>
@@ -189,9 +197,20 @@ export function DataLifecycleWorkspace({
       )}
 
       {loading || !lifecycle ? (
-        <div className="surface mt-5 rounded-2xl p-8">
-          <span className="block h-2 w-40 animate-pulse rounded-full bg-[var(--line)]" />
-          <span className="mt-4 block h-2 w-2/3 animate-pulse rounded-full bg-[var(--line)]" />
+        <div
+          aria-live="polite"
+          className="surface mt-5 rounded-2xl p-8"
+          role="status"
+        >
+          <span className="sr-only">Loading data lifecycle state…</span>
+          <span
+            aria-hidden="true"
+            className="block h-2 w-40 animate-pulse rounded-full bg-[var(--line)]"
+          />
+          <span
+            aria-hidden="true"
+            className="mt-4 block h-2 w-2/3 animate-pulse rounded-full bg-[var(--line)]"
+          />
         </div>
       ) : (
         <div className="mt-5 grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
@@ -318,7 +337,7 @@ export function DataLifecycleWorkspace({
               <h3 className="display-font mt-2 text-3xl font-medium">
                 Delete engagement data
               </h3>
-              <p className="mt-3 max-w-2xl text-xs leading-5 text-[var(--red)]/85">
+              <p className="mt-3 max-w-2xl text-xs leading-5 text-[var(--red)]">
                 Removes the engagement, structured model, workflows, economics,
                 artifacts, audit detail, and evidence objects. Only a
                 content-free receipt remains.
@@ -326,7 +345,10 @@ export function DataLifecycleWorkspace({
             </div>
 
             <div className="p-5 md:p-7">
-              <ol className="grid gap-3 text-xs font-bold text-[var(--ink-soft)]">
+              <ol
+                className="grid gap-3 text-xs font-bold text-[var(--ink-soft)]"
+                id="deletion-gates"
+              >
                 <Gate
                   complete={lifecycle.export_current}
                   text="A current portability export has been downloaded"
@@ -358,6 +380,7 @@ export function DataLifecycleWorkspace({
                   <label className="grid gap-2 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
                     Type the engagement name to confirm
                     <input
+                      aria-describedby="deletion-gates"
                       autoComplete="off"
                       className="rounded-xl border border-[var(--line)] bg-white px-3 py-3 text-xs font-bold normal-case tracking-normal text-[var(--ink)]"
                       disabled={busy !== null || !lifecycle.can_delete}

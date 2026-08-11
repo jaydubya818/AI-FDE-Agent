@@ -10,6 +10,7 @@ local development:
 
 - Allowed callback URL: `http://localhost:8000/api/auth/callback`
 - Allowed web origin: `http://localhost:3000`
+- Allowed logout URL: `http://localhost:3000`
 - Application login URI: `http://localhost:8000/api/auth/login`
 
 Production callback, cockpit, and origin URLs must use HTTPS. Do not place Auth0 client secrets in
@@ -55,6 +56,11 @@ Validate these failure paths before using a deployment:
 - logout revokes the server-side session and clears the cookie;
 - unauthenticated API calls receive 401;
 - cross-engagement access remains non-disclosing and denied by both the application and PostgreSQL.
+
+Run `make auth0-contract`, then `make auth0-readiness` with the real tenant configuration. Complete
+the separate [live-tenant validation record](auth0-live-validation.md) in a browser. The current
+logout revokes the AI-FDE application session; it does not claim to terminate every Auth0 or
+upstream identity-provider SSO session.
 
 Sanitized customer data remains disabled in the current build. OIDC authentication is necessary
 but not sufficient; retention, export, and deletion must be implemented and verified first.
