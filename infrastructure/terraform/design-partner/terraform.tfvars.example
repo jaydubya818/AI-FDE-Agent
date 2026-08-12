@@ -1,0 +1,17 @@
+aws_region               = "us-east-1"
+domain_name              = "ai-fde.example.com"
+route53_zone_id           = "Z0000000000000000000"
+acm_certificate_arn       = "arn:aws:acm:us-east-1:000000000000:certificate/replace-me"
+web_image                 = "000000000000.dkr.ecr.us-east-1.amazonaws.com/ai-fde-design-partner/web@sha256:replace-me"
+api_image                 = "000000000000.dkr.ecr.us-east-1.amazonaws.com/ai-fde-design-partner/api@sha256:replace-me"
+worker_image              = "000000000000.dkr.ecr.us-east-1.amazonaws.com/ai-fde-design-partner/worker@sha256:replace-me"
+worker_operator_id        = "00000000-0000-4000-8000-000000000002"
+bedrock_model_id          = "replace-with-evaluated-model-or-inference-profile-id"
+bedrock_model_arn         = "arn:aws:bedrock:us-east-1:000000000000:inference-profile/replace-me"
+oidc_issuer_url           = "https://replace-me.us.auth0.com/"
+oidc_client_id            = "replace-me"
+oidc_allowed_emails       = ["fde@example.com"]
+deployment_principal_arn  = "arn:aws:iam::000000000000:role/replace-with-federated-ci-role"
+services_enabled          = false
+sanitized_data_enabled    = false
+deployment_validation_id = null

@@ -1,7 +1,8 @@
 # ADR 0012: Give the Production Worker a Dedicated Service Identity
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-11
+**Accepted:** 2026-08-12
 
 ## Context
 
@@ -28,7 +29,7 @@ explicit engagement-scoped database transaction. PostgreSQL row policies remain 
 no superuser, owner connection, or worker-wide bypass role. Sanitized processing is allowed only in
 a production environment for a provisioned service identity with explicit engagement membership.
 
-The infrastructure workload identity is separate from the application actor. On the proposed AWS
+The infrastructure workload identity is separate from the application actor. On the AWS
 deployment, an ECS task IAM role grants the worker only its required S3, Bedrock, and secret access.
 The stable AI-FDE service-operator ID remains the actor used for row isolation and audit history
 when cloud credentials rotate.
@@ -49,6 +50,12 @@ when cloud credentials rotate.
 - Engagement onboarding gains one explicit worker-membership step.
 - A stable application identity and rotating cloud credential can be audited independently.
 - The worker cannot silently perform actions reserved for the human FDE.
+
+## Implementation status
+
+Implemented in the application model, worker startup validation, explicit administration command,
+audit attribution, membership-scoped job leasing, isolation tests, and the distinct ECS worker task
+role. Live deployment validation remains a separate release gate.
 
 ## Alternatives
 

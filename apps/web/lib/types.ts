@@ -2,6 +2,7 @@ export type Engagement = {
   id: string;
   name: string;
   slug: string;
+  workflow_name: string;
   primary_outcome: string;
   lifecycle_stage: string;
   data_classification: "synthetic" | "sanitized";
@@ -155,6 +156,18 @@ export type EconomicValue = {
   unit: string;
   classification: EvidenceClassification;
   formula?: string;
+  provenance?: {
+    source: string;
+    source_classification: EvidenceClassification;
+    transform: string;
+  };
+};
+
+export type EconomicScenario = {
+  label: string;
+  description: string;
+  inputs: Record<string, EconomicValue>;
+  outputs: Record<string, EconomicValue>;
 };
 
 export type EconomicCase = {
@@ -165,6 +178,7 @@ export type EconomicCase = {
   formula_version: string;
   inputs: Record<string, EconomicValue>;
   outputs: Record<string, EconomicValue>;
+  scenarios: Record<"low" | "base" | "high", EconomicScenario>;
   assumptions: string[];
   approved_at: string | null;
   created_at: string;
@@ -173,7 +187,15 @@ export type EconomicCase = {
 
 export type ImplementationArtifact = {
   id: string;
-  artifact_type: "implementation_spec";
+  artifact_type:
+    | "prd"
+    | "architecture"
+    | "business_rules"
+    | "integration_requirements"
+    | "approval_controls"
+    | "evaluation_plan"
+    | "implementation_spec";
+  packet_version: number;
   version_number: number;
   status: "current" | "stale";
   title: string;

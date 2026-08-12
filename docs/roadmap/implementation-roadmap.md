@@ -4,7 +4,11 @@
 **Team:** One founder using AI coding agents
 **Planning assumption:** Eight weeks. Six weeks may produce an internal alpha through implementation-ready artifacts, but it is not design-partner-ready. Compress only by reducing polish or provider breadth, not trust controls.
 
-**Implementation snapshot — 2026-08-08:** A narrow internal-alpha golden path now reaches a versioned implementation specification. It uses text/Markdown evidence, deterministic Acme extraction, minimal workflow semantics, one base economic formula, and a single Markdown artifact. The week-by-week sections below remain the acceptance scope for the broader V1; incomplete items are not implied complete by the vertical slice.
+**Implementation snapshot — 2026-08-12:** The repository now implements multi-format bounded
+evidence, a provider-neutral Bedrock production path, named primary workflows, low/base/high
+economics, a seven-artifact packet, a dedicated service worker, production images, and validated
+AWS Terraform. Sanitized-data readiness remains **NO-GO** until live Auth0/AWS/model, restore,
+deletion-boundary, and secret-rotation evidence is signed.
 
 ## Delivery Rule
 
@@ -152,10 +156,9 @@ Exit gate:
 
 ## Week 7: Trust and Security Hardening
 
-**Status:** In progress — explicit principals, application role authorization, fail-closed local
-identity, Auth0-backed opaque sessions, route/RLS isolation tests, bounded retention/export/
-deletion, and metadata-only telemetry are implemented. Live-tenant verification and implementation
-of the proposed worker service identity remain open.
+**Status:** Code complete; live validation open — explicit principals, application authorization,
+Auth0-backed opaque sessions, service-worker identity, route/RLS isolation, bounded data lifecycle,
+and metadata-only telemetry are implemented. Live Auth0 and deployed-worker evidence remain open.
 
 Build:
 
@@ -176,9 +179,9 @@ Exit gate:
 
 ## Week 8: Trust, Security, and Design-Partner Hardening
 
-**Status:** In progress — accessibility, clean-environment rehearsal, onboarding documentation,
-and provider-selection ADRs are complete. Live Auth0 execution and acceptance of ADRs 0012–0014
-remain release gates.
+**Status:** Code complete; sanitized-data no-go — accessibility, clean-environment tooling,
+onboarding, ADRs 0012–0014, production images, Terraform, Bedrock adapter, and automated readiness
+checks are complete. The required live records remain release gates.
 
 Build:
 

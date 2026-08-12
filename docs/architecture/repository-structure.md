@@ -44,8 +44,8 @@ ai-fde/
 │   │   ├── artifacts/
 │   │   ├── orchestration/
 │   │   └── audit/
-│   ├── agents/                 # Runtime, context builders, policies
-│   ├── adapters/               # DB, object store, LLM, parsers, sandbox
+│   ├── agents/                 # Post-V1 runtime, context builders, policies
+│   ├── adapters/               # DB, object store, extraction, parsers
 │   └── telemetry/
 │
 ├── contracts/                  # OpenAPI, JSON Schema, generated clients
@@ -60,7 +60,7 @@ ai-fde/
 │
 ├── fixtures/acme/              # Synthetic source evidence and expected truth
 ├── evals/accounts-payable/     # Golden, edge, adversarial, regression cases
-├── examples/work-order-target/ # Dedicated coding-agent target repository
+├── examples/work-order-target/ # Post-V1 coding-agent target repository
 ├── generated/                  # Local generated artifacts; ignored by default
 ├── docs/
 ├── infrastructure/             # Local Docker and later deployment definitions

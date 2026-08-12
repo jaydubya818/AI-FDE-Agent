@@ -26,17 +26,14 @@ flowchart TB
     WEB --> API["Application API"]
     API --> APP["Domain and Application Services"]
     WORKER["Persistent Worker"] --> APP
-    AGENT["Unified Agent Runtime"] --> TOOLS["Audited Domain Tools"]
-    TOOLS --> APP
 
     APP --> PG[("PostgreSQL + pgvector")]
     APP --> OBJ[("Evidence Object Storage")]
     APP --> OUTBOX["Transactional Outbox"]
     OUTBOX --> WORKER
 
-    WORKER --> LLM["LLM Providers"]
+    WORKER --> LLM["Amazon Bedrock extraction"]
     WORKER --> PARSER["Document Parsers"]
-    WORKER --> SANDBOX["Coding-Agent Sandbox"]
 
     APP --> OTEL["Logs, Traces, Metrics"]
     WORKER --> OTEL
@@ -48,11 +45,11 @@ V1 is a modular monolith with three process types:
 
 - **Web:** Next.js and TypeScript for the cockpit.
 - **API:** FastAPI and Python for synchronous application commands and queries.
-- **Worker:** The same Python application package running persistent jobs, extraction, generation, evaluations, and sandbox orchestration.
+- **Worker:** The same Python application package running persistent jobs and bounded claim extraction.
 
 The API and worker share domain and application code. They deploy together and use one PostgreSQL database. No internal network API separates domain modules.
 
-Exact dependency versions and hosting providers are selected at implementation kickoff and pinned. The architecture does not depend on a specific model vendor.
+Production uses one-region AWS Fargate, private RDS PostgreSQL, KMS-encrypted S3, and Amazon Bedrock. Extraction remains behind a provider-neutral application contract, while the selected production provider and model or inference profile are explicitly configured and evaluated.
 
 ## 5. Domain Modules
 
@@ -67,7 +64,7 @@ Exact dependency versions and hosting providers are selected at implementation k
 | Decisioning | Human / Software / AI recommendations and controls | Direct workflow mutation |
 | Economics | Baselines, scenarios, formulas, sensitivity | LLM-generated arithmetic |
 | Artifacts | Versioned PRD, architecture, evaluation, and WorkOrder outputs | Canonical business state |
-| Orchestration | Agent runs, tools, sandbox policy, WorkOrder execution | Production deployment in V1 |
+| Orchestration (post-V1) | Future agent runs, tools, sandbox policy, and WorkOrder execution | Any V1 production mutation |
 | Audit | Append-only domain and action history | Mutable application state |
 
 Modules expose typed commands, queries, and events. Direct cross-module table writes are forbidden.
@@ -87,7 +84,6 @@ flowchart LR
     I --> J["Target workflow version"]
     J --> K["Economic scenario"]
     K --> L["Versioned specifications"]
-    L --> M["Sandboxed WorkOrder run"]
 ```
 
 Rejected claims remain for audit. Superseded assertions remain historical. Derived state can be rebuilt from reviewed source state and versioned rules.
@@ -107,9 +103,13 @@ Rejected claims remain for audit. Superseded assertions remain historical. Deriv
 
 Each step has an idempotency key and can resume after failure.
 
-## 8. Agent Architecture
+## 8. Post-V1 Agent Architecture
 
-One agent runtime supports different configurations for discovery, workflow critique, specification generation, and coding orchestration.
+Coding-agent execution and autonomous remediation are not part of V1. The following is an
+evolution boundary, not a currently deployed capability.
+
+A future agent runtime would support different configurations for discovery, workflow critique,
+specification generation, and coding orchestration.
 
 An agent run includes:
 
@@ -125,13 +125,17 @@ An agent run includes:
 
 ### Tool Design
 
-Agents receive small domain tools such as `search_entities`, `read_assertion_evidence`, `propose_claim`, `list_unknowns`, and `draft_workflow_version`. They do not receive raw database access.
+Future agents would receive small domain tools such as `search_entities`,
+`read_assertion_evidence`, `propose_claim`, `list_unknowns`, and `draft_workflow_version`. They
+would not receive raw database access.
 
 The tools are composable and provide outcome parity with the cockpit, but safety invariants remain in application services. Immutable evidence is retired through policy rather than silently deleted. Approval tools separate propose from apply.
 
 ### Context Discipline
 
-Agents reason over a structured snapshot of the approved operating model. They may retrieve exact evidence for verification. Raw documents are not injected wholesale as an alternative source of truth.
+Future agents would reason over a structured snapshot of the approved operating model. They could
+retrieve exact evidence for verification. Raw documents would not be injected wholesale as an
+alternative source of truth.
 
 Long runs refresh the snapshot or stop if the referenced model version becomes stale.
 
@@ -168,17 +172,20 @@ Do not introduce Redis until measured load or coordination requires it. Correctn
 - Authorize every command and query against engagement membership and role.
 - Enforce engagement isolation in application services and PostgreSQL row-level security.
 - Add row-level policies with each engagement-owned table migration and complete a full policy audit before design-partner release.
-- Use separate runtime identities for web, worker, migration, and sandbox control.
+- Use separate runtime identities for web, API, worker, and migration. A future sandbox control
+  plane must receive its own identity before it can be enabled.
 - Keep model-provider and sandbox credentials outside application data.
 - Treat all ingested content as untrusted. Scan files and prevent prompt text from changing tool policy.
 - Test indirect prompt injection through documents, notes, model fields, and retrieved evidence.
-- Use deny-by-default sandbox network, filesystem, command, secret, duration, and budget policies.
+- Require deny-by-default sandbox network, filesystem, command, secret, duration, and budget
+  policies before any post-V1 coding-agent execution is enabled.
 - Redact sensitive payloads from telemetry. Store hashes and references where full content is unnecessary.
 - Record retention, legal hold, export, and deletion state before sanitized customer ingestion.
 
 ## 12. Observability and Audit
 
-OpenTelemetry covers request, job, provider, tool, and sandbox operations. Domain events use stable low-cardinality names.
+V1 telemetry covers request, job, and provider operations. Future tool and sandbox operations must
+use the same metadata-only discipline. Domain events use stable low-cardinality names.
 
 Every consequential action records:
 
@@ -206,7 +213,7 @@ Sensitive evidence content is not copied into normal logs.
 | Operator leaves mid-review | Persist review position and unsaved warning |
 | Model changes during generation | Complete against pinned version, mark output stale |
 | Worker crash | Lease expires and job resumes idempotently |
-| Sandbox policy violation | Stop run, quarantine outputs, require review |
+| Future sandbox policy violation | Stop run, quarantine outputs, require review |
 | Cost budget exceeded | Stop run and report partial evidence |
 
 ## 14. Evolution Triggers

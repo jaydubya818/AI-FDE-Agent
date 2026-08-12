@@ -32,6 +32,7 @@ def create_engagement(
     operator: Operator,
     name: str,
     primary_outcome: str,
+    workflow_name: str = "Primary Workflow",
     data_classification: str = "synthetic",
 ) -> Engagement:
     base_slug = _slugify(name)
@@ -44,6 +45,7 @@ def create_engagement(
     engagement = Engagement(
         name=name.strip(),
         slug=slug,
+        workflow_name=workflow_name.strip() or "Primary Workflow",
         primary_outcome=primary_outcome.strip(),
         lifecycle_stage="discover",
         data_classification=data_classification,
@@ -61,7 +63,10 @@ def create_engagement(
         action="engagement.created",
         target_type="engagement",
         target_id=engagement.id,
-        detail={"data_classification": data_classification},
+        detail={
+            "data_classification": data_classification,
+            "workflow_name": engagement.workflow_name,
+        },
     )
     publish_domain_event(
         session,

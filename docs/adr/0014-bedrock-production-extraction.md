@@ -1,7 +1,8 @@
 # ADR 0014: Use Amazon Bedrock for Production Claim Extraction
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-11
+**Accepted:** 2026-08-12
 
 ## Context
 
@@ -41,6 +42,13 @@ fails, extraction fails closed; the synthetic fixture extractor is never a produ
   provider citation features.
 - The exact Claude model can change only through an evaluation-backed configuration release; prior
   extraction runs remain reproducible by recorded version metadata.
+
+## Implementation status
+
+Implemented behind the provider-neutral extraction contract with strict structured output, exact
+offset reconstruction, bounded retry classification, prompt-injection controls, provenance
+validation, and metadata-only run records. Model selection and live Bedrock evaluation remain
+external release gates.
 
 ## Alternatives
 

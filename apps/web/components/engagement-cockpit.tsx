@@ -438,6 +438,9 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
           <p className="mt-2 text-sm font-extrabold leading-5">
             {engagement.name}
           </p>
+          <p className="mt-1 text-xs font-semibold text-[var(--ink-soft)]">
+            {engagement.workflow_name}
+          </p>
           <span className="mt-3 inline-flex rounded-full bg-[var(--amber-soft)] px-2.5 py-1 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--amber)]">
             Synthetic workspace
           </span>
@@ -543,9 +546,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
 
           <div className="mt-8 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] px-4 py-3 text-xs font-semibold leading-5 text-[var(--amber)]">
             <strong className="font-extrabold">V1 capability boundary:</strong>{" "}
-            Markdown and text evidence are parsed by a deterministic Acme
-            fixture extractor. This proves orchestration and provenance; it is
-            not production AI extraction.
+            PDF, DOCX, CSV, email, image, Markdown, and text evidence are
+            supported. Local development uses the deterministic Acme fixture;
+            production requires fail-closed Bedrock extraction. Coding-agent
+            execution and autonomous remediation are not included.
           </div>
 
           {notice && (
@@ -625,10 +629,11 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                     Preserve source evidence
                   </p>
                   <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">
-                    UTF-8 .md or .txt · 5 MB maximum
+                    PDF, DOCX, CSV, email, image, Markdown, or text · 5 MB
+                    maximum
                   </p>
                   <input
-                    accept=".md,.txt,text/markdown,text/plain"
+                    accept=".pdf,.docx,.csv,.eml,.png,.jpg,.jpeg,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv,message/rfc822,image/png,image/jpeg,text/markdown,text/plain"
                     disabled={uploading}
                     hidden
                     onChange={(event) =>
@@ -873,12 +878,12 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
               V1 boundary
             </p>
             <p className="display-font mt-3 text-2xl font-medium">
-              The lifecycle stops at an implementation-ready specification.
+              The lifecycle stops at an implementation-ready artifact packet.
             </p>
             <p className="mt-3 max-w-3xl text-xs leading-5 text-white/60">
-              Coding-agent dispatch, autonomous remediation, pilot execution,
-              production deployment, continuous ROI tracking, and higher
-              autonomy levels are intentionally not implemented or simulated.
+              Coding-agent dispatch and autonomous remediation remain post-V1.
+              Production and sanitized data remain gated until live tenant and
+              deployment validation succeeds.
             </p>
           </section>
         </div>

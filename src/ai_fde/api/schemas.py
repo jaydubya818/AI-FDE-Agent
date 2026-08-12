@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class EngagementCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
+    workflow_name: str = Field(default="Primary Workflow", min_length=2, max_length=255)
     primary_outcome: str = Field(min_length=10, max_length=2000)
     data_classification: Literal["synthetic", "sanitized"] = "synthetic"
 
@@ -20,6 +21,7 @@ class EngagementResponse(BaseModel):
     id: UUID
     name: str
     slug: str
+    workflow_name: str
     primary_outcome: str
     lifecycle_stage: str
     data_classification: str
@@ -291,6 +293,7 @@ class EconomicCaseResponse(BaseModel):
     formula_version: str
     inputs: dict[str, Any]
     outputs: dict[str, Any]
+    scenarios: dict[str, Any]
     assumptions: list[str]
     approved_at: datetime | None
     created_at: datetime
@@ -302,6 +305,7 @@ class ImplementationArtifactResponse(BaseModel):
 
     id: UUID
     artifact_type: str
+    packet_version: int
     version_number: int
     status: str
     title: str

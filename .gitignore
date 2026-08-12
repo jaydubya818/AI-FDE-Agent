@@ -21,3 +21,6 @@ generated/
 runtime/
 /artifacts/
 *.log
+.terraform/
+*.tfstate
+*.tfstate.*

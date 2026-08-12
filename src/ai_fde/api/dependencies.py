@@ -46,7 +46,7 @@ def get_principal(
                 return AuthenticatedPrincipal(
                     operator_id=operator_session.operator_id,
                     auth_mode="oidc",
-                    sanitized_data_allowed=False,
+                    sanitized_data_allowed=settings.sanitized_data_enabled,
                 )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

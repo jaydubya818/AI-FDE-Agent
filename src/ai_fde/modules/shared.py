@@ -17,10 +17,11 @@ def record_audit(
     target_type: str,
     target_id: UUID,
     detail: dict[str, Any] | None = None,
+    actor_type: str = "operator",
 ) -> AuditEvent:
     event = AuditEvent(
         engagement_id=engagement_id,
-        actor_type="operator",
+        actor_type=actor_type,
         actor_id=actor_id,
         action=action,
         target_type=target_type,

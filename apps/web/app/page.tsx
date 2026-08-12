@@ -90,6 +90,7 @@ export default function EngagementsPage() {
     try {
       const engagement = await createEngagement({
         name: String(form.get("name")),
+        workflow_name: String(form.get("workflow_name")),
         primary_outcome: String(form.get("primary_outcome")),
         data_classification: "synthetic",
       });
@@ -206,6 +207,17 @@ export default function EngagementsPage() {
                 />
               </label>
               <label className="grid gap-2 text-xs font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
+                Primary workflow
+                <input
+                  className="rounded-xl border border-[var(--line)] bg-white px-4 py-3.5 text-sm font-medium normal-case tracking-normal text-[var(--ink)]"
+                  maxLength={255}
+                  minLength={2}
+                  name="workflow_name"
+                  placeholder="e.g. Vendor onboarding"
+                  required
+                />
+              </label>
+              <label className="grid gap-2 text-xs font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
                 Primary business outcome
                 <textarea
                   className="min-h-28 resize-y rounded-xl border border-[var(--line)] bg-white px-4 py-3.5 text-sm font-medium normal-case leading-6 tracking-normal text-[var(--ink)]"
@@ -282,7 +294,7 @@ export default function EngagementsPage() {
                     </p>
                   </div>
                   <p className="mt-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
-                    {engagement.lifecycle_stage} ·{" "}
+                    {engagement.workflow_name} · {engagement.lifecycle_stage} ·{" "}
                     {engagement.data_classification}
                   </p>
                 </div>

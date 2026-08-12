@@ -1,7 +1,8 @@
 # ADR 0013: Deploy the Design-Partner Stack on AWS
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-11
+**Accepted:** 2026-08-12
 
 ## Context
 
@@ -37,11 +38,17 @@ enabled, must be verified not to capture sensitive callback query strings.
 ## Consequences
 
 - One provider supplies compute, database, evidence storage, workload identity, encryption, and
-  the proposed extraction API.
+  the selected extraction API.
 - Fargate costs and Terraform setup are higher than a platform-as-a-service deployment.
 - RDS backups can retain deleted data until their configured expiry; customer terms and retention
   UX must state that boundary accurately.
 - The modular monolith remains three runtime processes, not a distributed domain architecture.
+
+## Implementation status
+
+Implemented as production Dockerfiles and validated Terraform under
+`infrastructure/terraform/design-partner`. The stack remains unvalidated in a live AWS account;
+sanitized data stays disabled until the deployment readiness record passes.
 
 ## Alternatives
 

@@ -55,9 +55,13 @@ class TimestampMixin:
 
 class Operator(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "operators"
+    __table_args__ = (
+        CheckConstraint("identity_kind IN ('human', 'service')", name="valid_identity_kind"),
+    )
 
     external_subject: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    identity_kind: Mapped[str] = mapped_column(String(24), nullable=False, default="human")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
@@ -117,6 +121,7 @@ class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(120), nullable=False)
+    workflow_name: Mapped[str] = mapped_column(String(255), nullable=False)
     primary_outcome: Mapped[str] = mapped_column(Text, nullable=False)
     lifecycle_stage: Mapped[str] = mapped_column(String(32), nullable=False, default="discover")
     data_classification: Mapped[str] = mapped_column(
@@ -272,6 +277,14 @@ class ExtractionRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     extractor_name: Mapped[str] = mapped_column(String(120), nullable=False)
     extractor_version: Mapped[str] = mapped_column(String(32), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    model_id: Mapped[str | None] = mapped_column(String(512))
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_code: Mapped[str] = mapped_column(String(120), nullable=False, default="running")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="running")
     error_message: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -554,6 +567,7 @@ class EconomicCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     formula_version: Mapped[str] = mapped_column(String(64), nullable=False)
     inputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     outputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    scenarios: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     assumptions: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     created_by_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
@@ -570,8 +584,14 @@ class ImplementationArtifact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint(
             "engagement_id", "artifact_type", "version_number", name="artifact_version_identity"
         ),
-        CheckConstraint("artifact_type IN ('implementation_spec')", name="valid_artifact_type"),
+        CheckConstraint(
+            "artifact_type IN ('prd', 'architecture', 'business_rules', "
+            "'integration_requirements', 'approval_controls', 'evaluation_plan', "
+            "'implementation_spec')",
+            name="valid_artifact_type",
+        ),
         CheckConstraint("status IN ('current', 'stale')", name="valid_status"),
+        CheckConstraint("packet_version > 0", name="positive_packet_version"),
         Index("ix_implementation_artifacts_engagement_status", "engagement_id", "status"),
     )
 
@@ -579,6 +599,7 @@ class ImplementationArtifact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
     )
     artifact_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    packet_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="current")
     title: Mapped[str] = mapped_column(String(255), nullable=False)

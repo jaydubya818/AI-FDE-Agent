@@ -16,8 +16,7 @@ stateDiagram-v2
     Decide --> Design
     Design --> EconomicCase
     EconomicCase --> Specify
-    Specify --> Orchestrate
-    Orchestrate --> [*]
+    Specify --> [*]
 
     Discover --> Discover: More evidence required
     Model --> Discover: Material gap found
@@ -71,15 +70,9 @@ Quantify the baseline, expected change, implementation and operating cost, sensi
 
 ### 8. Specify
 
-Generate the PRD, architecture, contracts, rules, controls, evaluation plan, rollout assumptions, and bounded WorkOrders from approved versions.
+Generate the PRD, architecture, contracts, rules, controls, evaluation plan, rollout assumptions, and implementation specification from approved versions.
 
 **Exit gate:** Required artifacts are current, internally consistent, and implementation-ready.
-
-### 9. Orchestrate
-
-Dispatch one approved WorkOrder to a sandboxed coding agent. Validate the result against acceptance criteria and preserve execution evidence.
-
-**Exit gate:** The WorkOrder completes or fails transparently with logs, tests, outputs, and a next decision.
 
 ## Transition Rules
 
@@ -92,4 +85,6 @@ Dispatch one approved WorkOrder to a sandboxed coding agent. Validate the result
 
 ## Later Lifecycle
 
-Pilot, Deploy, Adopt, Measure, Learn, and Productize remain part of the product vision. They are documented as future stages but are not represented as completed capabilities in V1.
+Orchestrate, Pilot, Deploy, Adopt, Measure, Learn, and Productize remain part of the product vision.
+Orchestrate may later dispatch an approved WorkOrder to a sandboxed coding agent, but coding-agent
+execution and autonomous remediation are not represented as V1 capabilities.

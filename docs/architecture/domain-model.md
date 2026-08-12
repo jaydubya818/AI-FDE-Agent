@@ -57,11 +57,14 @@ Stores baselines and scenarios with labeled evidence quality.
 
 Key concepts: `MetricDefinition`, `BaselineObservation`, `EconomicScenario`, `ScenarioInput`, `ScenarioResult`, `FormulaVersion`.
 
-### Artifacts and Orchestration
+### Artifacts
 
-Connects approved business state to bounded engineering work.
+Packages approved business state into implementation-ready documents.
 
-Key concepts: `Artifact`, `ArtifactVersion`, `WorkOrder`, `WorkOrderRun`, `AgentRun`, `ToolInvocation`, `SandboxPolicy`, `EvaluationRun`.
+Key concepts: `Artifact`, `ArtifactVersion`, `ArtifactPacket`, `EvaluationPlan`.
+
+WorkOrders, agent runs, tool invocations, and sandbox policy are reserved for the post-V1 coding-
+agent phase and are not V1 aggregates.
 
 ## 3. High-Level Relationships
 
@@ -88,9 +91,6 @@ erDiagram
 
     PROCESS_VERSION ||--o{ ECONOMIC_SCENARIO : values
     WORKFLOW_VERSION ||--o{ ARTIFACT_VERSION : informs
-    ARTIFACT_VERSION ||--o{ WORK_ORDER : defines
-    WORK_ORDER ||--o{ WORK_ORDER_RUN : executes_as
-    WORK_ORDER_RUN ||--o{ TOOL_INVOCATION : records
 ```
 
 ## 4. State Models
@@ -125,12 +125,6 @@ Approved versions are immutable. A change creates a new draft.
 
 An upstream change marks dependent current artifacts stale. It does not delete them.
 
-### WorkOrder Run
-
-`queued → preparing → running → evaluating → succeeded | failed | blocked | cancelled | expired`
-
-Only explicit completion or a terminal system condition ends a run.
-
 ## 5. Key Invariants
 
 1. A record cannot reference an object from another engagement.
@@ -140,10 +134,8 @@ Only explicit completion or a terminal system condition ends a run.
 5. An approved target workflow references an approved current workflow version.
 6. An economic result references immutable input and formula versions.
 7. A specification references approved operating-model and workflow versions.
-8. A WorkOrder run references an approved WorkOrder and sandbox policy version.
-9. Agent and tool mutations create audit records in the same transaction as domain state.
-10. Deletion and retention operations preserve required audit metadata without retaining prohibited content.
-11. Permanent engagement deletion requires a current portability export and preserves only a
+8. Deletion and retention operations preserve required audit metadata without retaining prohibited content.
+9. Permanent engagement deletion requires a current portability export and preserves only a
     content-free, operator-scoped receipt outside the engagement aggregate.
 
 ## 6. Domain Services
@@ -158,7 +150,6 @@ Use domain services only for logic spanning aggregates:
 - `AllocationRecommendationService`
 - `EconomicCalculationService`
 - `ArtifactFreshnessService`
-- `WorkOrderPolicyService`
 
 LLM calls are adapters used by application workflows. They are not domain services and cannot bypass invariants.
 
@@ -177,8 +168,5 @@ Initial event names:
 - `economic_case.approved`
 - `artifact.generated`
 - `artifact.marked_stale`
-- `work_order.approved`
-- `work_order_run.completed`
-- `sandbox.violation_detected`
 
 Events carry identifiers, versions, actor, engagement, causation, and correlation. They do not carry raw evidence content by default.

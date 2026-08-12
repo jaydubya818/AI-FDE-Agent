@@ -10,6 +10,8 @@ from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import operator_session
 from ai_fde.models import CandidateClaim, Contradiction, Operator
 from ai_fde.modules.artifacts.service import (
+    ARTIFACT_TYPES,
+    generate_implementation_packet,
     generate_implementation_specification,
     get_latest_artifact,
 )
@@ -45,6 +47,7 @@ def test_verified_model_to_implementation_specification_lifecycle(
             session,
             operator=operator,
             name="Lifecycle Manufacturing",
+            workflow_name="Vendor onboarding",
             primary_outcome="Prove an evidence-backed implementation specification lifecycle.",
         )
         engagement_id = engagement.id
@@ -116,6 +119,7 @@ def test_verified_model_to_implementation_specification_lifecycle(
 
         target = generate_target_workflow(session, engagement_id=engagement_id, operator=operator)
         target_steps = list_workflow_steps(session, target.id)
+        assert target.name == "Vendor onboarding — Target State"
         assert len(target_steps) == 4
         assert {step.allocation for step in target_steps} <= {"human", "software"}
         approve_workflow(
@@ -144,6 +148,12 @@ def test_verified_model_to_implementation_specification_lifecycle(
         )
         assert economic_case.outputs["annual_hours_saved"]["value"] == "4000.00"
         assert economic_case.outputs["annual_net_benefit"]["value"] == "150000.00"
+        assert list(economic_case.scenarios) == ["low", "base", "high"]
+        assert (
+            Decimal(economic_case.scenarios["low"]["outputs"]["annual_net_benefit"]["value"])
+            < Decimal(economic_case.scenarios["base"]["outputs"]["annual_net_benefit"]["value"])
+            < Decimal(economic_case.scenarios["high"]["outputs"]["annual_net_benefit"]["value"])
+        )
         approve_economic_case(
             session,
             engagement_id=engagement_id,
@@ -159,6 +169,16 @@ def test_verified_model_to_implementation_specification_lifecycle(
         assert "Invoices over $50,000 require CFO approval." in artifact.content
         assert "annual_net_benefit" in artifact.content
         assert "No production deployment" in artifact.content
+        packet = generate_implementation_packet(
+            session, engagement_id=engagement_id, operator=operator
+        )
+        assert [item.artifact_type for item in packet] == list(ARTIFACT_TYPES)
+        assert len({item.packet_version for item in packet}) == 1
+        assert len({item.source_current_workflow_id for item in packet}) == 1
+        assert all("Accounts Payable" not in item.title for item in packet)
+        assert "## Runtime boundaries" in next(
+            item.content for item in packet if item.artifact_type == "architecture"
+        )
 
         remaining_entity_claim = session.scalar(
             select(CandidateClaim).where(

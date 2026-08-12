@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal, Protocol
 
 
 @dataclass(frozen=True)
@@ -21,12 +21,50 @@ class ExtractedClaim:
     quote: str
 
 
+@dataclass(frozen=True)
+class ExtractionResult:
+    claims: list[ExtractedClaim]
+    provider_name: str
+    model_id: str | None
+    prompt_version: str
+    schema_version: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    latency_ms: int = 0
+    result_code: str = "complete"
+
+
+class ExtractionProviderError(RuntimeError):
+    def __init__(self, message: str, *, result_code: str, retryable: bool) -> None:
+        super().__init__(message)
+        self.result_code = result_code
+        self.retryable = retryable
+
+
+class ExtractionProvider(Protocol):
+    name: str
+    version: str
+    schema_version: str
+    prompt_version: str
+    model_id: str | None
+
+    def extract(
+        self,
+        text: str,
+        *,
+        image_bytes: bytes | None = None,
+        image_format: Literal["png", "jpeg"] | None = None,
+    ) -> ExtractionResult: ...
+
+
 class DeterministicAcmeExtractor:
     """Narrow, transparent extractor for the first fixture-backed vertical slice."""
 
     name = "deterministic-acme-patterns"
     version = "1.0.0"
     schema_version = "claim-v1"
+    prompt_version = "fixture-rules-v1"
+    model_id: str | None = None
 
     _owns = re.compile(
         r"(?P<person>[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)+)\s+owns\s+"
@@ -51,14 +89,27 @@ class DeterministicAcmeExtractor:
         flags=re.IGNORECASE,
     )
 
-    def extract(self, text: str) -> list[ExtractedClaim]:
+    def extract(
+        self,
+        text: str,
+        *,
+        image_bytes: bytes | None = None,
+        image_format: Literal["png", "jpeg"] | None = None,
+    ) -> ExtractionResult:
+        del image_bytes, image_format
         claims: list[ExtractedClaim] = []
         claims.extend(self._extract_ownership(text))
         claims.extend(self._extract_system_usage(text))
         claims.extend(self._extract_approval_rules(text))
         claims.extend(self._extract_approval_exceptions(text))
         claims.extend(self._extract_explicit_entities(text))
-        return self._deduplicate(claims)
+        return ExtractionResult(
+            claims=self._deduplicate(claims),
+            provider_name=self.name,
+            model_id=self.model_id,
+            prompt_version=self.prompt_version,
+            schema_version=self.schema_version,
+        )
 
     def _extract_ownership(self, text: str) -> list[ExtractedClaim]:
         output: list[ExtractedClaim] = []

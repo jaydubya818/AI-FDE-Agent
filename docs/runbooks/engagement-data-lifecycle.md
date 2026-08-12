@@ -19,7 +19,7 @@ evidence object's SHA-256 hash and downloads a deterministic ZIP containing:
 
 - `manifest.json` with the schema version, export identifier, fingerprint, and counts;
 - `records.json` and `records.yaml` with the engagement's structured state;
-- Markdown implementation specifications;
+- every current Markdown implementation-packet artifact;
 - audit history available at export time; and
 - original evidence files under engagement-scoped paths.
 

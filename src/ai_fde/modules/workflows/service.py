@@ -63,6 +63,9 @@ def generate_current_workflow(
     engagement_id: UUID,
     operator: Operator,
 ) -> WorkflowVersion:
+    engagement = session.get(Engagement, engagement_id)
+    if engagement is None:
+        raise WorkflowNotFoundError(str(engagement_id))
     existing = session.scalar(
         select(WorkflowVersion)
         .where(
@@ -101,8 +104,11 @@ def generate_current_workflow(
         engagement_id=engagement_id,
         workflow_kind="current",
         version_number=_next_workflow_version(session, engagement_id, "current"),
-        name="Accounts Payable — Current State",
-        objective="Represent the verified invoice-approval workflow without redesigning it.",
+        name=f"{engagement.workflow_name} — Current State",
+        objective=(
+            f"Represent the verified {engagement.workflow_name.lower()} workflow without "
+            "redesigning it."
+        ),
         status="draft",
         source_assertion_ids=[str(item.id) for item in assertions],
         generated_by="system",
@@ -131,6 +137,9 @@ def generate_target_workflow(
     engagement_id: UUID,
     operator: Operator,
 ) -> WorkflowVersion:
+    engagement = session.get(Engagement, engagement_id)
+    if engagement is None:
+        raise WorkflowNotFoundError(str(engagement_id))
     current = _latest_approved_workflow(session, engagement_id, "current")
     if current is None:
         raise WorkflowStageGateError(
@@ -157,7 +166,7 @@ def generate_target_workflow(
         engagement_id=engagement_id,
         workflow_kind="target",
         version_number=_next_workflow_version(session, engagement_id, "target"),
-        name="Accounts Payable — Target State",
+        name=f"{engagement.workflow_name} — Target State",
         objective=(
             "Allocate each verified workflow step to the safest effective combination of human "
             "authority and existing software."
@@ -191,9 +200,7 @@ def generate_target_workflow(
             )
         )
     session.flush()
-    engagement = session.get(Engagement, engagement_id)
-    if engagement is not None:
-        engagement.lifecycle_stage = "decide"
+    engagement.lifecycle_stage = "decide"
     _record_workflow_event(session, workflow, operator, "workflow.target_drafted")
     return workflow
 
@@ -412,7 +419,7 @@ def _project_assertion(session: Session, assertion: Assertion) -> dict[str, obje
             "source_assertion_id": assertion.id,
         }
     if assertion.predicate == "REQUIRES_APPROVAL" and object_name:
-        qualifier = str(condition) if condition else "qualifying invoices"
+        qualifier = str(condition) if condition else "qualifying work"
         prefix = "Apply approved exception for" if is_exception else "Approve"
         return {
             "step_key": f"approval-{source_suffix}",
@@ -424,6 +431,45 @@ def _project_assertion(session: Session, assertion: Assertion) -> dict[str, obje
             "allocation": "human",
             "rationale": "A material financial approval remains under human authority.",
             "controls": ["Approval actor and decision are recorded"],
+            "source_assertion_id": assertion.id,
+        }
+    if assertion.predicate == "PRECEDES" and object_name:
+        return {
+            "step_key": f"sequence-{source_suffix}",
+            "name": f"Complete {subject.display_name} before {object_name}",
+            "description": str(assertion.value.get("summary") or "Verified workflow sequence."),
+            "step_type": "decision",
+            "actor_label": subject.display_name,
+            "system_label": None,
+            "allocation": "human",
+            "rationale": "The ordering dependency is verified; its execution remains explicit.",
+            "controls": [f"Do not begin {object_name} before completion is recorded"],
+            "source_assertion_id": assertion.id,
+        }
+    if assertion.predicate == "HANDS_OFF_TO" and object_name:
+        return {
+            "step_key": f"handoff-{source_suffix}",
+            "name": f"Hand off from {subject.display_name} to {object_name}",
+            "description": str(assertion.value.get("summary") or "Verified workflow handoff."),
+            "step_type": "handoff",
+            "actor_label": object_name,
+            "system_label": None,
+            "allocation": "human",
+            "rationale": "The verified receiving role must acknowledge the transfer of work.",
+            "controls": ["Record the sender, recipient, timestamp, and acknowledgement"],
+            "source_assertion_id": assertion.id,
+        }
+    if assertion.predicate == "GOVERNED_BY" and object_name:
+        return {
+            "step_key": f"governance-{source_suffix}",
+            "name": f"Apply {object_name}",
+            "description": str(assertion.value.get("summary") or "Verified governing rule."),
+            "step_type": "decision",
+            "actor_label": subject.display_name,
+            "system_label": None,
+            "allocation": "human",
+            "rationale": "A verified policy or rule must remain an explicit decision control.",
+            "controls": [f"Record the applicable version of {object_name}"],
             "source_assertion_id": assertion.id,
         }
     return None
