@@ -21,7 +21,13 @@
 
 - [Implementation roadmap](roadmap/implementation-roadmap.md)
 - [Detailed implementation plan](plans/2026-08-08-feat-ai-fde-operator-cockpit-plan.md)
+- [Repeatable end-to-end rehearsal plan](plans/2026-08-14-feat-repeatable-e2e-delivery-rehearsal-plan.md)
+- [Design-partner delivery plan](delivery/design-partner-delivery-plan.md)
 - [Initial backlog](backlog/initial-backlog.md)
+
+## Testing
+
+- [End-to-end test strategy](testing/end-to-end-test-strategy.md)
 
 ## Decisions
 
@@ -33,6 +39,7 @@
 - [Auth0 live-tenant validation](runbooks/auth0-live-validation.md)
 - [Engagement data lifecycle](runbooks/engagement-data-lifecycle.md)
 - [Clean-environment rehearsal](runbooks/clean-environment-rehearsal.md)
+- [Synthetic sample demo](runbooks/sample-demo.md)
 - [Design-partner go/no-go](runbooks/design-partner-go-no-go.md)
 - [FDE operator onboarding](runbooks/operator-onboarding.md)
 

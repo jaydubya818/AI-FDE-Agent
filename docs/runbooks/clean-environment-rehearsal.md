@@ -16,18 +16,19 @@ Override `AI_FDE_REHEARSAL_POSTGRES_PORT`, `AI_FDE_REHEARSAL_MINIO_API_PORT`, or
 
 The gate passes only when a fresh dependency install, migration, schema-drift check, synthetic
 seed, full Python suite, Ruff, mypy, ESLint, TypeScript check, and production web build all pass.
-Afterward, follow the operator onboarding checklist against a running stack to visually rehearse
-the golden workflow and all approval gates.
+Run `make demo-rehearsal` afterward to drive the golden workflow and every material approval gate
+through the production-mode web application. The complete procedure is in the
+[synthetic sample demo runbook](sample-demo.md).
 
 ## Rehearsal record
 
-| Field | Value |
-| --- | --- |
-| Date | 2026-08-11 |
-| Commit | Pending final hardening commit |
-| Host | Local macOS / Docker Desktop |
-| Result | Passed |
-| Exceptions | None recorded |
+| Field      | Value                          |
+| ---------- | ------------------------------ |
+| Date       | 2026-08-11                     |
+| Commit     | Pending final hardening commit |
+| Host       | Local macOS / Docker Desktop   |
+| Result     | Passed                         |
+| Exceptions | None recorded                  |
 
 The recorded run created new PostgreSQL and MinIO volumes, applied all four migrations, seeded a
 new Acme engagement, passed 27 Python tests, detected no schema drift, passed all static checks,

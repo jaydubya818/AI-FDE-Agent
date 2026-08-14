@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
+const baseURL =
+  process.env.AI_FDE_PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const usesExternalServer =
+  process.env.AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER === "true";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -7,15 +12,17 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL,
     colorScheme: "light",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  webServer: {
-    command: "pnpm --dir ../.. dev",
-    reuseExistingServer: true,
-    timeout: 120_000,
-    url: "http://localhost:3000",
-  },
+  webServer: usesExternalServer
+    ? undefined
+    : {
+        command: "pnpm --dir ../.. dev",
+        reuseExistingServer: true,
+        timeout: 120_000,
+        url: baseURL,
+      },
 });

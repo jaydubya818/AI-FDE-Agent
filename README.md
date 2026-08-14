@@ -646,6 +646,20 @@ development environment and cannot authorize sanitized engagements.
 
 ## Walk the golden path
 
+Run the complete production-mode synthetic journey in a disposable environment:
+
+```bash
+make demo-rehearsal
+```
+
+The command migrates an empty database, seeds Acme, starts the API, persistent worker, and optimized
+web server, drives every material decision in Chromium, verifies the seven-artifact packet, captures
+a local screenshot, and removes its containers and volumes. See the
+[sample demo runbook](docs/runbooks/sample-demo.md) for the talk track, expected results, failure
+recovery, and the latest rehearsal record.
+
+For a human-operated walkthrough against the normal development stack:
+
 1. Open the Operator Cockpit and select **Acme Manufacturing**.
 2. Wait for the worker to process the synthetic evidence.
 3. Review candidate claims beside their exact source excerpts.
@@ -670,6 +684,7 @@ make acceptance     # golden path and tenant isolation
 make accessibility  # WCAG 2.2 AA axe and keyboard checks
 make terraform-check
 make rehearse        # clean isolated build and test rehearsal
+make demo-rehearsal   # clean production-mode browser golden path
 pnpm build           # production Next.js build
 uv run alembic check
 ```
@@ -713,6 +728,10 @@ Start with the [documentation index](docs/README.md).
 - [Architecture decisions](docs/adr/README.md)
 - [Implementation roadmap](docs/roadmap/implementation-roadmap.md)
 - [Active backlog](docs/backlog/initial-backlog.md)
+- [End-to-end test strategy](docs/testing/end-to-end-test-strategy.md)
+- [Design-partner delivery plan](docs/delivery/design-partner-delivery-plan.md)
+- [Sample demo runbook](docs/runbooks/sample-demo.md)
+- [Repeatable rehearsal implementation plan](docs/plans/2026-08-14-feat-repeatable-e2e-delivery-rehearsal-plan.md)
 - [Design-partner readiness plan](docs/plans/2026-08-12-feat-design-partner-readiness-plan.md)
 - [AWS deployment guide](infrastructure/terraform/design-partner/README.md)
 - [Design-partner go/no-go record](docs/runbooks/design-partner-go-no-go.md)

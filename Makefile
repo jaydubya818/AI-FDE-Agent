@@ -1,4 +1,4 @@
-.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness terraform-check rehearse
+.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness terraform-check rehearse demo-rehearsal
 
 setup:
 	uv sync
@@ -47,3 +47,6 @@ terraform-check:
 
 rehearse:
 	./scripts/rehearse-clean-environment.sh
+
+demo-rehearsal:
+	./scripts/rehearse-sample-demo.sh
