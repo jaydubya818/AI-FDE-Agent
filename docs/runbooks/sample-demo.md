@@ -269,22 +269,21 @@ Do not remove the normal development project or broad Docker volumes.
 
 ## Rehearsal record
 
-| Field                | Value                                                                             |
-| -------------------- | --------------------------------------------------------------------------------- |
-| Date                 | 2026-08-14                                                                        |
-| Source               | `codex/e2e-delivery-rehearsal` working tree based on `c56e304`                    |
-| Host                 | Local macOS / Docker Desktop                                                      |
-| Web mode             | Optimized Next.js build served with `next start`                                  |
-| Data/provider        | Synthetic Acme / deterministic extraction                                         |
-| Result               | Passed                                                                            |
-| Browser result       | 1 passed in 2.3 seconds                                                           |
-| Complete rehearsal   | 16 seconds                                                                        |
-| Final evidence       | `output/playwright/demo/demo-complete.png` inspected                              |
-| Console/API failures | None                                                                              |
-| Cleanup              | Containers, volumes, API, and web listeners removed                               |
-| Exceptions           | None recorded                                                                     |
-| External gates       | Auth0, AWS, Bedrock, recovery, deletion boundary, and secret rotation remain open |
+| Field                 | Value                                                                             |
+| --------------------- | --------------------------------------------------------------------------------- |
+| Date                  | 2026-08-14                                                                        |
+| Tested implementation | `f9a2c82` (`test: add end-to-end delivery rehearsal`)                             |
+| Host                  | Local macOS / Docker Desktop                                                      |
+| Web mode              | Optimized Next.js build served with `next start`                                  |
+| Data/provider         | Synthetic Acme / deterministic extraction                                         |
+| Result                | Passed                                                                            |
+| Browser result        | 1 passed in 2.3 seconds                                                           |
+| Complete rehearsal    | 16 seconds                                                                        |
+| Final evidence        | `output/playwright/demo/demo-complete.png` inspected                              |
+| Console/API failures  | None                                                                              |
+| Cleanup               | Containers, volumes, API, and web listeners removed                               |
+| Exceptions            | None recorded                                                                     |
+| External gates        | Auth0, AWS, Bedrock, recovery, deletion boundary, and secret rotation remain open |
 
-The implementation commit is added to this record after the tested source tree is committed. The
-authoritative production decision remains the
+The authoritative production decision remains the
 [design-partner go/no-go record](design-partner-go-no-go.md).

@@ -1,7 +1,7 @@
 ---
 title: "feat: Add repeatable end-to-end delivery rehearsal"
 type: feat
-status: active
+status: completed
 date: 2026-08-14
 ---
 
@@ -135,7 +135,7 @@ by a separate acceptance test that can verify the surviving content-free receipt
 - [x] Write a sample-demo runbook with setup, talk track, expected observations, failure recovery,
       and cleanup.
 - [x] Link every new document from the documentation index and README quality commands.
-- [ ] Record the executed rehearsal date, commit, result, duration, and exceptions.
+- [x] Record the executed rehearsal date, commit, result, duration, and exceptions.
 
 ### Phase 4 — Execution and Quality
 
@@ -256,7 +256,22 @@ rollback remains an external staging rehearsal gate.
 - [x] The optimized production web build passes.
 - [x] The test strategy and delivery plan name owners and measurable gates.
 - [x] The demo runbook can be followed without database editing.
-- [ ] The sample run is recorded with its actual result and limitations.
+- [x] The sample run is recorded with its actual result and limitations.
+
+## Completion Record
+
+| Evidence                                 | Result                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| Tested implementation                    | `f9a2c82` (`test: add end-to-end delivery rehearsal`)               |
+| Production-mode browser rehearsal        | Passed; 1 browser test in 2.3 seconds, 16 seconds end to end        |
+| Clean migration and repository rehearsal | Passed; upgrade, downgrade, re-upgrade, and no drift                |
+| Python suite                             | 42 passed                                                           |
+| Static and build gates                   | Ruff, mypy, ESLint, TypeScript, and optimized Next.js build passed  |
+| Accessibility                            | 5 Playwright WCAG, keyboard, focus, and reduced-motion tests passed |
+| Infrastructure static validation         | Terraform format and validation passed                              |
+| Documentation quality                    | Prettier, 52-file local-link scan, and `git diff --check` passed    |
+| Runtime cleanup                          | Dedicated containers, volumes, API, and web listeners removed       |
+| External release state                   | NO-GO remains for sanitized data until every live gate passes       |
 
 ## Risks and Mitigations
 
