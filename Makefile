@@ -1,4 +1,4 @@
-.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness rehearse
+.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness terraform-check rehearse
 
 setup:
 	uv sync
@@ -40,6 +40,10 @@ auth0-contract: infrastructure migrate
 
 auth0-readiness:
 	PYTHONPATH=src uv run python scripts/verify_auth0_configuration.py
+
+terraform-check:
+	terraform fmt -check -recursive infrastructure/terraform/design-partner
+	terraform -chdir=infrastructure/terraform/design-partner validate
 
 rehearse:
 	./scripts/rehearse-clean-environment.sh

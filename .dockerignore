@@ -1,0 +1,16 @@
+.git
+.env
+.venv
+.next
+node_modules
+.terraform
+*.tfstate
+*.tfstate.*
+artifacts
+runtime
+coverage
+playwright-report
+test-results
+**/__pycache__
+**/*.pyc
+**/*.log

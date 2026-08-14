@@ -78,6 +78,7 @@ export function listEngagements(): Promise<Engagement[]> {
 
 export function createEngagement(payload: {
   name: string;
+  workflow_name: string;
   primary_outcome: string;
   data_classification: "synthetic" | "sanitized";
 }): Promise<Engagement> {
@@ -330,6 +331,23 @@ export function generateImplementationSpecification(
 ): Promise<ImplementationArtifact> {
   return request(
     `/engagements/${engagementId}/implementation-specifications/generate`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function getImplementationPacket(
+  engagementId: string,
+): Promise<ImplementationArtifact[]> {
+  return request(`/engagements/${engagementId}/implementation-packet`);
+}
+
+export function generateImplementationPacket(
+  engagementId: string,
+): Promise<ImplementationArtifact[]> {
+  return request(
+    `/engagements/${engagementId}/implementation-packet/generate`,
     {
       method: "POST",
     },

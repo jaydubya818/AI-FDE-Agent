@@ -31,6 +31,7 @@ def main() -> None:
                 session,
                 operator=operator,
                 name="Acme Manufacturing",
+                workflow_name="Accounts Payable",
                 primary_outcome=(
                     "Reduce invoice-processing cycle time while preserving financial "
                     "approval controls."

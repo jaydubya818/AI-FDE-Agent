@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -16,10 +17,14 @@ from ai_fde.models import (
     EvidenceSegment,
     ExtractionRun,
     Job,
+    Operator,
 )
-from ai_fde.modules.evidence.parser import parse_text_evidence
-from ai_fde.modules.knowledge.extractor import DeterministicAcmeExtractor
-from ai_fde.modules.shared import publish_domain_event
+from ai_fde.modules.evidence.parser import parse_evidence
+from ai_fde.modules.knowledge.extractor import (
+    DeterministicAcmeExtractor,
+    ExtractionProvider,
+)
+from ai_fde.modules.shared import publish_domain_event, record_audit
 
 
 class JobProcessingError(RuntimeError):
@@ -58,7 +63,8 @@ def process_job(
     session: Session,
     store: EvidenceStore,
     job: Job,
-    extractor: DeterministicAcmeExtractor | None = None,
+    extractor: ExtractionProvider | None = None,
+    actor: Operator | None = None,
 ) -> None:
     if job.kind != "ingest_evidence":
         raise JobProcessingError(f"Unsupported job kind: {job.kind}")
@@ -73,7 +79,7 @@ def process_job(
     asset.error_message = None
     job.progress = 15
     content = store.get(asset.storage_key)
-    parsed_segments = parse_text_evidence(content, asset.content_type, asset.file_name)
+    parsed_segments = parse_evidence(content, asset.content_type, asset.file_name)
 
     existing_segment = session.scalar(
         select(EvidenceSegment.id).where(EvidenceSegment.evidence_asset_id == asset.id).limit(1)
@@ -88,6 +94,11 @@ def process_job(
         extractor_name=resolved_extractor.name,
         extractor_version=resolved_extractor.version,
         schema_version=resolved_extractor.schema_version,
+        provider_name=resolved_extractor.name,
+        model_id=resolved_extractor.model_id,
+        prompt_version=resolved_extractor.prompt_version,
+        input_hash=asset.content_hash,
+        result_code="running",
         status="running",
     )
     session.add(extraction_run)
@@ -103,13 +114,33 @@ def process_job(
             start_offset=parsed.start_offset,
             end_offset=parsed.end_offset,
             locator=parsed.locator,
-            parser_name="utf8-paragraph-parser",
-            parser_version="1.0.0",
+            parser_name=parsed.parser_name,
+            parser_version=parsed.parser_version,
         )
         session.add(segment)
         session.flush()
 
-        for extracted in resolved_extractor.extract(parsed.content):
+        image_format: Literal["png", "jpeg"] | None = None
+        image_bytes = None
+        if parsed.modality == "image":
+            image_bytes = content
+            image_format = "png" if asset.file_name.casefold().endswith(".png") else "jpeg"
+        result = resolved_extractor.extract(
+            parsed.content,
+            image_bytes=image_bytes,
+            image_format=image_format,
+        )
+        extraction_run.input_tokens += result.input_tokens
+        extraction_run.output_tokens += result.output_tokens
+        extraction_run.latency_ms += result.latency_ms
+        for extracted in result.claims:
+            if not (
+                0 <= extracted.start_offset < extracted.end_offset <= len(parsed.content)
+                and parsed.content[extracted.start_offset : extracted.end_offset] == extracted.quote
+            ):
+                raise JobProcessingError(
+                    "An extracted claim did not resolve to exact stored evidence offsets."
+                )
             claim = CandidateClaim(
                 engagement_id=job.engagement_id,
                 extraction_run_id=extraction_run.id,
@@ -141,6 +172,7 @@ def process_job(
     _detect_contradictions(session, job.engagement_id, created_claims)
 
     extraction_run.status = "complete"
+    extraction_run.result_code = "complete"
     extraction_run.completed_at = datetime.now(UTC)
     asset.status = "needs_review" if created_claims else "complete"
     job.status = "completed"
@@ -159,15 +191,41 @@ def process_job(
             "extractor_version": resolved_extractor.version,
         },
     )
+    if actor is not None:
+        record_audit(
+            session,
+            engagement_id=job.engagement_id,
+            actor_id=actor.id,
+            actor_type=actor.identity_kind,
+            action="extraction.completed",
+            target_type="extraction_run",
+            target_id=extraction_run.id,
+            detail={
+                "provider": extraction_run.provider_name,
+                "model_id": extraction_run.model_id,
+                "prompt_version": extraction_run.prompt_version,
+                "schema_version": extraction_run.schema_version,
+                "result_code": extraction_run.result_code,
+                "claim_count": len(created_claims),
+            },
+        )
 
 
-def fail_job(session: Session, job_id: UUID, message: str) -> None:
+def fail_job(
+    session: Session,
+    job_id: UUID,
+    message: str,
+    *,
+    retryable: bool = True,
+    result_code: str = "evidence_processing_failed",
+    extractor: ExtractionProvider | None = None,
+) -> None:
     job = session.get(Job, job_id)
     if job is None:
         return
     job.error_message = message[:4000]
     job.leased_until = None
-    if job.attempts >= job.max_attempts:
+    if not retryable or job.attempts >= job.max_attempts:
         job.status = "failed"
     else:
         job.status = "queued"
@@ -178,6 +236,24 @@ def fail_job(session: Session, job_id: UUID, message: str) -> None:
         if asset is not None:
             asset.status = "failed" if job.status == "failed" else "queued"
             asset.error_message = job.error_message
+            if extractor is not None:
+                session.add(
+                    ExtractionRun(
+                        engagement_id=job.engagement_id,
+                        evidence_asset_id=asset.id,
+                        extractor_name=extractor.name,
+                        extractor_version=extractor.version,
+                        schema_version=extractor.schema_version,
+                        provider_name=extractor.name,
+                        model_id=extractor.model_id,
+                        prompt_version=extractor.prompt_version,
+                        input_hash=asset.content_hash,
+                        result_code=result_code[:120],
+                        status="failed",
+                        error_message=message[:4000],
+                        completed_at=datetime.now(UTC),
+                    )
+                )
 
 
 def _complete_existing_job(session: Session, job: Job, asset: EvidenceAsset) -> None:

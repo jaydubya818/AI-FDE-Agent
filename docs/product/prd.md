@@ -131,16 +131,16 @@ At every step, the operator can inspect evidence, correct state, see blockers, l
 
 V1 implements these stage gates:
 
-| Stage | Exit evidence |
-| --- | --- |
-| Qualify | Outcome, sponsor, workflow, and initial feasibility recorded |
-| Discover | Required evidence set ingested; open questions assigned |
-| Model | Material claims reviewed; identities and conflicts triaged |
-| Map | Current workflow approved with exceptions and evidence |
-| Decide | Step allocation reviewed; risks and controls recorded |
-| Design | Target workflow approved and versioned |
-| Economic Case | Baseline, assumptions, formulas, and sensitivity approved |
-| Specify | Required implementation artifacts generated and current |
+| Stage         | Exit evidence                                                |
+| ------------- | ------------------------------------------------------------ |
+| Qualify       | Outcome, sponsor, workflow, and initial feasibility recorded |
+| Discover      | Required evidence set ingested; open questions assigned      |
+| Model         | Material claims reviewed; identities and conflicts triaged   |
+| Map           | Current workflow approved with exceptions and evidence       |
+| Decide        | Step allocation reviewed; risks and controls recorded        |
+| Design        | Target workflow approved and versioned                       |
+| Economic Case | Baseline, assumptions, formulas, and sensitivity approved    |
+| Specify       | Required implementation artifacts generated and current      |
 
 Stages cannot be silently skipped. An authorized operator may override a gate only with a reason. The override is audited.
 
@@ -204,8 +204,14 @@ The first milestone measures product credibility, not vanity usage:
 - Zero silent conflicts and zero cross-engagement access in automated tests.
 - An FDE can complete the golden path without editing the database or generated artifacts by hand.
 - The FDE judges the resulting workflow and specification usable for an engineering kickoff.
+- Model tokens, latency, cost, and accepted-claim yield are attributable to each extraction run and
+  engagement.
+- Model cost per accepted material claim and approved artifact packet can be calculated without
+  excluding retries or rejected output.
 
 Quality thresholds for broader extraction precision and recall will be established from the Acme evaluation dataset before the design-partner release.
+Token-cost reduction requires a comparable internal baseline and cannot be claimed from the
+synthetic fixture alone. Pull-request token efficiency remains post-V1 with coding-agent execution.
 
 ## 12. Non-Goals
 
@@ -221,14 +227,14 @@ Quality thresholds for broader extraction precision and recall will be establish
 
 ## 13. Primary Risks
 
-| Risk | Response |
-| --- | --- |
-| Broad platform work displaces the vertical slice | Enforce release criteria and non-goals |
-| Extraction quality creates false confidence | Candidate claims, evidence review, and explicit unknowns |
-| Generic graph schema becomes unusable | Typed core entities plus a bounded relationship layer |
-| Two application runtimes slow a solo founder | Keep one deployable system and strict API contracts |
-| Future execution work leaks into V1 | Keep coding-agent dispatch and sandbox implementation explicitly post-V1 |
-| A polished demo masks simulated capability | Label fixtures and simulations; require working acceptance tests |
+| Risk                                             | Response                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| Broad platform work displaces the vertical slice | Enforce release criteria and non-goals                                   |
+| Extraction quality creates false confidence      | Candidate claims, evidence review, and explicit unknowns                 |
+| Generic graph schema becomes unusable            | Typed core entities plus a bounded relationship layer                    |
+| Two application runtimes slow a solo founder     | Keep one deployable system and strict API contracts                      |
+| Future execution work leaks into V1              | Keep coding-agent dispatch and sandbox implementation explicitly post-V1 |
+| A polished demo masks simulated capability       | Label fixtures and simulations; require working acceptance tests         |
 
 ## 14. Decisions Before Later Phases
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -11,7 +12,7 @@ from ai_fde.models import EconomicCase, Engagement, Operator, WorkflowVersion
 from ai_fde.modules.lifecycle import stale_after_economic_change
 from ai_fde.modules.shared import publish_domain_event, record_audit
 
-FORMULA_VERSION = "labor-capacity-v1"
+FORMULA_VERSION = "labor-capacity-sensitivity-v2"
 REQUIRED_INPUTS = {
     "annual_volume": "items/year",
     "current_minutes_per_item": "minutes/item",
@@ -73,55 +74,31 @@ def calculate_economic_case(
         classification = classifications.get(key)
         if classification not in VALID_CLASSIFICATIONS:
             raise ValueError(f"{key} requires a valid evidence classification.")
+    if values["target_minutes_per_item"] > values["current_minutes_per_item"]:
+        raise ValueError("target_minutes_per_item cannot exceed current_minutes_per_item.")
 
-    annual_volume = values["annual_volume"]
-    current_minutes = values["current_minutes_per_item"]
-    target_minutes = values["target_minutes_per_item"]
-    loaded_hourly_cost = values["loaded_hourly_cost"]
-    implementation_cost = values["implementation_cost"]
-    annual_operating_cost = values["annual_operating_cost"]
-
-    hours_saved = annual_volume * (current_minutes - target_minutes) / Decimal(60)
-    gross_labor_value = hours_saved * loaded_hourly_cost
-    annual_net_benefit = gross_labor_value - annual_operating_cost
-    payback_months = (
-        implementation_cost / (annual_net_benefit / Decimal(12)) if annual_net_benefit > 0 else None
-    )
-
-    inputs = {
-        key: {
-            "value": _decimal_string(values[key]),
-            "unit": unit,
-            "classification": classifications[key],
+    scenario_values = _scenario_values(values)
+    scenarios: dict[str, dict[str, Any]] = {
+        scenario_name: {
+            "label": scenario_name.title(),
+            "description": description,
+            "inputs": _render_inputs(
+                adjusted_values,
+                classifications,
+                scenario_name=scenario_name,
+            ),
+            "outputs": _calculate_outputs(adjusted_values),
         }
-        for key, unit in REQUIRED_INPUTS.items()
+        for scenario_name, (description, adjusted_values) in scenario_values.items()
     }
-    outputs: dict[str, dict[str, str | None]] = {
-        "annual_hours_saved": {
-            "value": _decimal_string(hours_saved),
-            "unit": "hours/year",
-            "classification": "calculated",
-            "formula": "annual_volume × (current_minutes_per_item − target_minutes_per_item) ÷ 60",
-        },
-        "annual_gross_labor_value": {
-            "value": _money_string(gross_labor_value),
-            "unit": "USD/year",
-            "classification": "calculated",
-            "formula": "annual_hours_saved × loaded_hourly_cost",
-        },
-        "annual_net_benefit": {
-            "value": _money_string(annual_net_benefit),
-            "unit": "USD/year",
-            "classification": "calculated",
-            "formula": "annual_gross_labor_value − annual_operating_cost",
-        },
-        "payback_months": {
-            "value": _decimal_string(payback_months) if payback_months is not None else None,
-            "unit": "months",
-            "classification": "calculated",
-            "formula": "implementation_cost ÷ (annual_net_benefit ÷ 12)",
-        },
-    }
+    inputs = _render_inputs(values, classifications, scenario_name="base")
+    outputs = _calculate_outputs(values)
+
+    low_net = Decimal(str(scenarios["low"]["outputs"]["annual_net_benefit"]["value"]))
+    base_net = Decimal(str(outputs["annual_net_benefit"]["value"]))
+    high_net = Decimal(str(scenarios["high"]["outputs"]["annual_net_benefit"]["value"]))
+    if not low_net <= base_net <= high_net:
+        raise RuntimeError("Economic sensitivity scenarios are not monotonic.")
 
     existing = session.scalar(
         select(EconomicCase)
@@ -150,6 +127,7 @@ def calculate_economic_case(
             formula_version=FORMULA_VERSION,
             inputs=inputs,
             outputs=outputs,
+            scenarios=scenarios,
             assumptions=_clean_assumptions(assumptions),
             created_by_id=operator.id,
         )
@@ -157,8 +135,10 @@ def calculate_economic_case(
         session.flush()
     else:
         economic_case = existing
+        economic_case.formula_version = FORMULA_VERSION
         economic_case.inputs = inputs
         economic_case.outputs = outputs
+        economic_case.scenarios = scenarios
         economic_case.assumptions = _clean_assumptions(assumptions)
 
     stale_after_economic_change(session, engagement_id)
@@ -169,7 +149,11 @@ def calculate_economic_case(
         action="economic_case.calculated",
         target_type="economic_case",
         target_id=economic_case.id,
-        detail={"formula_version": FORMULA_VERSION, "version": economic_case.version_number},
+        detail={
+            "formula_version": FORMULA_VERSION,
+            "version": economic_case.version_number,
+            "scenarios": list(scenarios),
+        },
     )
     publish_domain_event(
         session,
@@ -177,9 +161,114 @@ def calculate_economic_case(
         event_type="economic_case.calculated",
         aggregate_type="economic_case",
         aggregate_id=economic_case.id,
-        payload={"formula_version": FORMULA_VERSION},
+        payload={"formula_version": FORMULA_VERSION, "scenarios": list(scenarios)},
     )
     return economic_case
+
+
+def _calculate_outputs(values: dict[str, Decimal]) -> dict[str, dict[str, str | None]]:
+    hours_saved = (
+        values["annual_volume"]
+        * (values["current_minutes_per_item"] - values["target_minutes_per_item"])
+        / Decimal(60)
+    )
+    gross_labor_value = hours_saved * values["loaded_hourly_cost"]
+    annual_net_benefit = gross_labor_value - values["annual_operating_cost"]
+    payback_months = (
+        values["implementation_cost"] / (annual_net_benefit / Decimal(12))
+        if annual_net_benefit > 0
+        else None
+    )
+    return {
+        "annual_hours_saved": {
+            "value": _decimal_string(hours_saved),
+            "unit": "hours/year",
+            "classification": "calculated",
+            "formula": "annual_volume × (current_minutes_per_item − target_minutes_per_item) ÷ 60",
+        },
+        "annual_gross_labor_value": {
+            "value": _money_string(gross_labor_value),
+            "unit": "USD/year",
+            "classification": "calculated",
+            "formula": "annual_hours_saved × loaded_hourly_cost",
+        },
+        "annual_net_benefit": {
+            "value": _money_string(annual_net_benefit),
+            "unit": "USD/year",
+            "classification": "calculated",
+            "formula": "annual_gross_labor_value − annual_operating_cost",
+        },
+        "payback_months": {
+            "value": _decimal_string(payback_months) if payback_months is not None else None,
+            "unit": "months",
+            "classification": "calculated",
+            "formula": "implementation_cost ÷ (annual_net_benefit ÷ 12)",
+        },
+    }
+
+
+def _scenario_values(
+    values: dict[str, Decimal],
+) -> dict[str, tuple[str, dict[str, Decimal]]]:
+    current_minutes = values["current_minutes_per_item"]
+    base_savings = current_minutes - values["target_minutes_per_item"]
+
+    low = dict(values)
+    low["annual_volume"] *= Decimal("0.90")
+    low["target_minutes_per_item"] = current_minutes - base_savings * Decimal("0.80")
+    low["loaded_hourly_cost"] *= Decimal("0.90")
+    low["implementation_cost"] *= Decimal("1.10")
+    low["annual_operating_cost"] *= Decimal("1.10")
+
+    high = dict(values)
+    high["annual_volume"] *= Decimal("1.10")
+    high["target_minutes_per_item"] = max(
+        Decimal(0), current_minutes - base_savings * Decimal("1.20")
+    )
+    high["loaded_hourly_cost"] *= Decimal("1.10")
+    high["implementation_cost"] *= Decimal("0.90")
+    high["annual_operating_cost"] *= Decimal("0.90")
+
+    return {
+        "low": (
+            "Conservative volume, time savings, and labor value with 10% higher costs.",
+            low,
+        ),
+        "base": ("Submitted values with no sensitivity adjustment.", dict(values)),
+        "high": (
+            "Favorable volume, time savings, and labor value with 10% lower costs.",
+            high,
+        ),
+    }
+
+
+def _render_inputs(
+    values: dict[str, Decimal],
+    classifications: dict[str, str],
+    *,
+    scenario_name: str,
+) -> dict[str, dict[str, str | dict[str, str]]]:
+    transforms = {
+        "annual_volume": "90% / submitted / 110%",
+        "current_minutes_per_item": "submitted in all scenarios",
+        "target_minutes_per_item": "80% / 100% / 120% of submitted time savings",
+        "loaded_hourly_cost": "90% / submitted / 110%",
+        "implementation_cost": "110% / submitted / 90%",
+        "annual_operating_cost": "110% / submitted / 90%",
+    }
+    return {
+        key: {
+            "value": _decimal_string(values[key]),
+            "unit": unit,
+            "classification": classifications[key] if scenario_name == "base" else "simulated",
+            "provenance": {
+                "source": "submitted_base_input",
+                "source_classification": classifications[key],
+                "transform": "none" if scenario_name == "base" else transforms[key],
+            },
+        }
+        for key, unit in REQUIRED_INPUTS.items()
+    }
 
 
 def approve_economic_case(

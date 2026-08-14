@@ -33,6 +33,7 @@
 - [Auth0 live-tenant validation](runbooks/auth0-live-validation.md)
 - [Engagement data lifecycle](runbooks/engagement-data-lifecycle.md)
 - [Clean-environment rehearsal](runbooks/clean-environment-rehearsal.md)
+- [Design-partner go/no-go](runbooks/design-partner-go-no-go.md)
 - [FDE operator onboarding](runbooks/operator-onboarding.md)
 
 ## Security

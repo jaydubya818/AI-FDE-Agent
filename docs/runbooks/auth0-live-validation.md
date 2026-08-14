@@ -41,4 +41,16 @@ tokens, or screenshots containing those values into this record.
 | Tester | |
 | Test date/time | |
 | Result | Pass / Fail |
+| Validation record ID | |
+| Authorization-code + PKCE evidence reference | |
+| Exact callback and return-path evidence reference | |
+| Cookie flags evidence reference | |
+| Allowlist denial evidence reference | |
+| Logout and server-side revocation evidence reference | |
+| Unauthenticated 401/redirect evidence reference | |
 | Failure ticket or notes (no secrets) | |
+
+The record is incomplete until every box is checked and every evidence reference resolves to a
+sanitized screenshot, HTTP transcript, or test record. Repository contract tests do not satisfy
+this live gate. Pass its validation record ID to `verify_design_partner_readiness.py`; never invent
+an ID for an unrun tenant test.

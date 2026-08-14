@@ -92,9 +92,7 @@ test("cockpit landmarks, disclosures, and scroll regions are keyboard reachable"
     page.getByRole("button", { name: "Close operator note" }),
   ).toHaveAttribute("aria-expanded", "true");
 
-  const specification = page.getByLabel(
-    "Generated implementation specification Markdown",
-  );
+  const specification = page.getByLabel(/^Generated .* Markdown$/);
   if (await specification.count()) {
     await expect(specification).toHaveAttribute("tabindex", "0");
   }

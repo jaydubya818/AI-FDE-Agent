@@ -8,10 +8,10 @@ import {
   approveWorkflow,
   calculateEconomics,
   generateCurrentWorkflow,
-  generateImplementationSpecification,
+  generateImplementationPacket,
   generateTargetWorkflow,
   getEconomics,
-  getImplementationSpecification,
+  getImplementationPacket,
   getWorkflows,
   updateWorkflowStep,
 } from "@/lib/api";
@@ -27,7 +27,7 @@ import type {
 type LifecycleData = {
   workflows: WorkflowWorkspace;
   economics: EconomicCase | null;
-  artifact: ImplementationArtifact | null;
+  artifacts: ImplementationArtifact[];
 };
 
 type EconomicKey =
@@ -47,7 +47,7 @@ const economicFields: Array<{ key: EconomicKey; label: string; unit: string }> =
   [
     {
       key: "annual_volume",
-      label: "Annual invoice volume",
+      label: "Annual item volume",
       unit: "items / year",
     },
     {
@@ -115,19 +115,24 @@ export function LifecycleWorkspace({
   const [overrideReason, setOverrideReason] = useState("");
   const [economicDraft, setEconomicDraft] =
     useState<EconomicDraft>(defaultEconomics);
+  const [selectedArtifactType, setSelectedArtifactType] = useState<
+    ImplementationArtifact["artifact_type"]
+  >("implementation_spec");
 
   const load = useCallback(async () => {
-    const [workflows, economics, artifact] = await Promise.all([
+    const [workflows, economics, artifacts] = await Promise.all([
       getWorkflows(engagementId),
       getEconomics(engagementId),
-      getImplementationSpecification(engagementId),
+      getImplementationPacket(engagementId),
     ]);
-    setData({ workflows, economics, artifact });
+    setData({ workflows, economics, artifacts });
     onProgress({
       current: workflows.current?.status === "approved",
       target: workflows.target?.status === "approved",
       economics: economics?.status === "approved",
-      specification: artifact?.status === "current",
+      specification:
+        artifacts.length === 7 &&
+        artifacts.every((artifact) => artifact.status === "current"),
     });
   }, [engagementId, onProgress]);
 
@@ -187,17 +192,17 @@ export function LifecycleWorkspace({
     );
   }
 
-  async function handleCopySpecification(content: string) {
+  async function handleCopyArtifact(content: string) {
     try {
       await navigator.clipboard.writeText(content);
       setNotice({
         tone: "success",
-        text: "The implementation specification was copied to the clipboard.",
+        text: "The selected artifact was copied to the clipboard.",
       });
     } catch {
       setNotice({
         tone: "error",
-        text: "The browser could not copy the implementation specification.",
+        text: "The browser could not copy the selected artifact.",
       });
     }
   }
@@ -229,6 +234,14 @@ export function LifecycleWorkspace({
   const currentApproved = current?.status === "approved";
   const targetApproved = target?.status === "approved";
   const economicsApproved = data.economics?.status === "approved";
+  const packetCurrent =
+    data.artifacts.length === 7 &&
+    new Set(data.artifacts.map((artifact) => artifact.packet_version)).size ===
+      1;
+  const selectedArtifact =
+    data.artifacts.find(
+      (artifact) => artifact.artifact_type === selectedArtifactType,
+    ) ?? data.artifacts.at(-1);
 
   return (
     <>
@@ -497,63 +510,85 @@ export function LifecycleWorkspace({
       <section className="mt-14 scroll-mt-6" id="specification">
         <LifecycleHeading
           eyebrow="07 / Engineering handoff"
-          title="Implementation specification"
-          detail="The generated Markdown pins verified assertions, both approved workflows, the formula version, economic inputs, controls, and acceptance criteria."
+          title="Implementation artifact packet"
+          detail="Seven version-pinned artifacts separate product intent, architecture, rules, integrations, controls, evaluation, and build detail."
         />
         {!economicsApproved ? (
-          <LockedStage text="Approve the economic case before generating the implementation specification." />
-        ) : !data.artifact || data.artifact.status === "stale" ? (
+          <LockedStage text="Approve the economic case before generating the implementation packet." />
+        ) : !packetCurrent ? (
           <LifecycleEmpty
             title={
-              data.artifact?.status === "stale"
-                ? "The prior specification is stale."
-                : "No implementation specification yet."
+              data.artifacts.length > 0
+                ? "The prior artifact set is incomplete."
+                : "No current implementation packet."
             }
-            detail="Generate a new immutable version from the approved upstream state. Coding-agent execution is not included."
+            detail="Generate seven immutable artifacts from approved upstream state. Coding-agent execution and autonomous remediation are not included."
             button={
-              busy === "spec-generate"
+              busy === "packet-generate"
                 ? "Generating…"
-                : "Generate specification"
+                : "Generate artifact packet"
             }
             disabled={busy !== null}
             onClick={() =>
               void runAction(
-                "spec-generate",
-                () => generateImplementationSpecification(engagementId),
-                "A versioned implementation specification was generated from approved state.",
+                "packet-generate",
+                () => generateImplementationPacket(engagementId),
+                "A seven-document implementation packet was generated from approved state.",
               )
             }
           />
-        ) : (
+        ) : selectedArtifact ? (
           <div className="surface mt-5 overflow-hidden rounded-2xl">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
-              <div>
-                <p className="text-sm font-extrabold">{data.artifact.title}</p>
-                <p className="mt-1 text-[0.62rem] font-bold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
-                  Version {data.artifact.version_number} · SHA-256{" "}
-                  {data.artifact.content_hash.slice(0, 12)}… ·{" "}
-                  {data.artifact.status}
-                </p>
+            <div className="border-b border-[var(--line)] px-5 py-4">
+              <div className="mb-4 flex flex-wrap gap-2" role="tablist">
+                {data.artifacts.map((artifact) => (
+                  <button
+                    aria-selected={
+                      artifact.artifact_type === selectedArtifact.artifact_type
+                    }
+                    className={`rounded-full border px-3 py-2 text-[0.62rem] font-extrabold uppercase tracking-[0.06em] ${artifact.artifact_type === selectedArtifact.artifact_type ? "border-[var(--teal)] bg-[var(--teal-soft)] text-[var(--teal)]" : "border-[var(--line)] text-[var(--ink-soft)]"}`}
+                    key={artifact.id}
+                    onClick={() =>
+                      setSelectedArtifactType(artifact.artifact_type)
+                    }
+                    role="tab"
+                    type="button"
+                  >
+                    {artifact.artifact_type.replaceAll("_", " ")}
+                  </button>
+                ))}
               </div>
-              <button
-                className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-xs font-extrabold"
-                onClick={() =>
-                  void handleCopySpecification(data.artifact!.content)
-                }
-                type="button"
-              >
-                Copy Markdown
-              </button>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-extrabold">
+                    {selectedArtifact.title}
+                  </p>
+                  <p className="mt-1 text-[0.62rem] font-bold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
+                    Packet {selectedArtifact.packet_version} · Artifact version{" "}
+                    {selectedArtifact.version_number} · SHA-256{" "}
+                    {selectedArtifact.content_hash.slice(0, 12)}…
+                  </p>
+                </div>
+                <button
+                  className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-xs font-extrabold"
+                  onClick={() =>
+                    void handleCopyArtifact(selectedArtifact.content)
+                  }
+                  type="button"
+                >
+                  Copy Markdown
+                </button>
+              </div>
             </div>
             <pre
-              aria-label="Generated implementation specification Markdown"
+              aria-label={`Generated ${selectedArtifact.artifact_type.replaceAll("_", " ")} Markdown`}
               className="max-h-[680px] overflow-auto whitespace-pre-wrap bg-[#102328] p-5 font-mono text-[0.72rem] leading-6 text-[#e7eee9]"
               tabIndex={0}
             >
-              {data.artifact.content}
+              {selectedArtifact.content}
             </pre>
           </div>
-        )}
+        ) : null}
       </section>
     </>
   );
@@ -817,6 +852,10 @@ function EconomicResults({
         </div>
       </div>
     );
+  const scenarioNames = ["low", "base", "high"] as const;
+  const hasSensitivityScenarios = scenarioNames.every(
+    (scenarioName) => economicCase.scenarios?.[scenarioName],
+  );
   return (
     <div className="surface rounded-2xl p-5">
       <div className="flex items-center justify-between">
@@ -829,6 +868,44 @@ function EconomicResults({
           {economicCase.status}
         </span>
       </div>
+      {hasSensitivityScenarios ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {scenarioNames.map((scenarioName) => {
+            const scenario = economicCase.scenarios[scenarioName];
+            const netBenefit = scenario.outputs.annual_net_benefit;
+            const payback = scenario.outputs.payback_months;
+            return (
+              <article
+                className={`rounded-xl border p-4 ${scenarioName === "base" ? "border-[var(--teal)] bg-[var(--teal-soft)]" : "border-[var(--line)] bg-white"}`}
+                key={scenarioName}
+              >
+                <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.08em] text-[var(--ink-soft)]">
+                  {scenario.label} scenario
+                </p>
+                <p className="display-font mt-2 text-xl font-medium">
+                  {formatEconomicValue(netBenefit.value, netBenefit.unit)}
+                </p>
+                <p className="mt-1 text-[0.62rem] font-bold text-[var(--ink-soft)]">
+                  {payback.value
+                    ? `${formatEconomicValue(payback.value, payback.unit)} payback`
+                    : "No positive payback"}
+                </p>
+                <p className="mt-3 text-[0.62rem] leading-5 text-[var(--ink-soft)]">
+                  {scenario.description}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] p-4 text-xs font-bold leading-5 text-[var(--amber)]">
+          This case predates sensitivity scenarios. Recalculate it before
+          approval or handoff.
+        </div>
+      )}
+      <p className="mt-5 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
+        Base scenario detail
+      </p>
       <div className="mt-4 grid gap-3">
         {Object.entries(economicCase.outputs).map(([key, output]) => (
           <div

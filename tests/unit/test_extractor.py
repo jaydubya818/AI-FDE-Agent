@@ -10,7 +10,8 @@ def test_extractor_returns_structured_claims_with_exact_quotes() -> None:
         "Accounts Payable uses NetSuite to record invoices."
     )
 
-    claims = DeterministicAcmeExtractor().extract(source)
+    result = DeterministicAcmeExtractor().extract(source)
+    claims = result.claims
 
     assert {claim.predicate for claim in claims} == {
         "IDENTIFIED_AS",
@@ -29,7 +30,7 @@ def test_extractor_preserves_exception_semantics() -> None:
         "by the Controller when the CFO is unavailable."
     )
 
-    [claim] = DeterministicAcmeExtractor().extract(source)
+    [claim] = DeterministicAcmeExtractor().extract(source).claims
 
     assert claim.claim_kind == "exception"
     assert claim.predicate == "REQUIRES_APPROVAL"

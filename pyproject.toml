@@ -15,8 +15,11 @@ dependencies = [
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
+  "pillow>=11.3,<12",
   "pydantic-settings>=2.10,<3",
+  "pypdf>=6.0,<7",
   "pyyaml>=6.0,<7",
+  "python-docx>=1.2,<2",
   "python-multipart>=0.0.20,<1",
   "sqlalchemy>=2.0.51,<2.1",
   "uvicorn[standard]>=0.35,<1",
@@ -35,6 +38,7 @@ dev = [
 [project.scripts]
 ai-fde-worker = "ai_fde.worker:main"
 ai-fde-seed = "ai_fde.seed:main"
+ai-fde-admin = "ai_fde.admin:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_fde"]

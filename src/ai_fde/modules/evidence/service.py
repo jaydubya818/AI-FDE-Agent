@@ -10,6 +10,10 @@ from sqlalchemy.orm import Session
 
 from ai_fde.adapters.storage import EvidenceStore
 from ai_fde.models import EvidenceAsset, Job, Operator
+from ai_fde.modules.evidence.parser import (
+    UnsupportedEvidenceTypeError,
+    validate_evidence_upload_metadata,
+)
 from ai_fde.modules.shared import publish_domain_event, record_audit
 
 MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
@@ -38,6 +42,10 @@ def create_evidence_asset(
         raise EvidenceValidationError("Evidence cannot be empty.")
     if len(content) > MAX_EVIDENCE_BYTES:
         raise EvidenceValidationError("Evidence exceeds the 5 MB vertical-slice limit.")
+    try:
+        validate_evidence_upload_metadata(content_type, safe_name)
+    except UnsupportedEvidenceTypeError as exc:
+        raise EvidenceValidationError(str(exc)) from exc
 
     digest = hashlib.sha256(content).hexdigest()
     existing = session.scalar(

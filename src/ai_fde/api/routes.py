@@ -61,8 +61,10 @@ from ai_fde.api.schemas import (
 from ai_fde.models import WorkflowVersion
 from ai_fde.modules.artifacts.service import (
     ArtifactStageGateError,
+    generate_implementation_packet,
     generate_implementation_specification,
     get_latest_artifact,
+    list_current_artifacts,
 )
 from ai_fde.modules.data_lifecycle.service import (
     DataLifecycleError,
@@ -270,12 +272,13 @@ def create_engagement_endpoint(
     if payload.data_classification == "sanitized" and not principal.sanitized_data_allowed:
         raise HTTPException(
             status_code=403,
-            detail="Sanitized engagements require production OIDC authentication.",
+            detail="Sanitized engagements require all production readiness gates.",
         )
     engagement = create_engagement(
         session,
         operator=operator,
         name=payload.name,
+        workflow_name=payload.workflow_name,
         primary_outcome=payload.primary_outcome,
         data_classification=payload.data_classification,
     )
@@ -837,6 +840,40 @@ def generate_implementation_specification_endpoint(
     except ArtifactStageGateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ImplementationArtifactResponse.model_validate(artifact)
+
+
+@router.get(
+    "/engagements/{engagement_id}/implementation-packet",
+    response_model=list[ImplementationArtifactResponse],
+)
+def get_implementation_packet_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
+) -> list[ImplementationArtifactResponse]:
+    return [
+        ImplementationArtifactResponse.model_validate(artifact)
+        for artifact in list_current_artifacts(session, engagement_id)
+    ]
+
+
+@router.post(
+    "/engagements/{engagement_id}/implementation-packet/generate",
+    response_model=list[ImplementationArtifactResponse],
+)
+def generate_implementation_packet_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    operator: OperatorDependency,
+    _access: EngagementWriteDependency,
+) -> list[ImplementationArtifactResponse]:
+    try:
+        artifacts = generate_implementation_packet(
+            session, engagement_id=engagement_id, operator=operator
+        )
+    except ArtifactStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return [ImplementationArtifactResponse.model_validate(artifact) for artifact in artifacts]
 
 
 def _workflow_response(

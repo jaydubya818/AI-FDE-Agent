@@ -3,21 +3,25 @@
 **Status:** Active
 **Rule:** P0 items are required for the design-partner milestone. P1 items may be cut in the order defined by the roadmap. P2 is post-V1.
 
-## Implementation Snapshot — 2026-08-11
+## Implementation Snapshot — 2026-08-12
 
 - Complete: FND-01 through FND-05, PLT-01/03/04/05/06/07/09, EVD-02/03/05/06/08, KNO-03/05/07, COM-02/07, WFL-01/03/05, DEC-03/04, ECO-01/02, ART-01/05, and the initial SEC-02/03 row-isolation foundation.
-- Working narrow implementations: WFL-02/04, ECO-04, and ART-02 prove the golden path but do not yet satisfy the full backlog acceptance language for workflow transitions, evidence editing, scenario sensitivity, or a multi-artifact packet.
-- Narrow V1 implementation: text and Markdown only; deterministic Acme extraction only; local development identity for local runs and an Auth0 production-session path awaiting live-tenant verification.
-- End-to-end slice: verified assertions now drive approved current and target workflows, a reproducible base economic case, and a dependency-pinned Markdown implementation specification.
+- Implemented design-partner code paths: bounded PDF/DOCX/CSV/EML/image/text parsing,
+  provider-neutral extraction, fail-closed Bedrock structured output, named primary workflows,
+  low/base/high economics, and a dependency-pinned seven-artifact packet.
+- The deterministic Acme extractor remains development/test-only. Production configuration requires
+  Bedrock and never falls back to fixture rules.
 - Authorization foundation: an explicit request principal now drives the database RLS context; owner/operator/viewer permissions are enforced on every engagement route; outsiders receive non-disclosing 404s; development identity cannot access or create sanitized engagements.
 - Authentication slice: ADR 0011 is accepted, Auth0 is selected, and the opaque PostgreSQL-backed production session is implemented with PKCE, state/nonce validation, token verification, allowlisted enrollment, revocation, and provider-contract tests.
 - Data-lifecycle slice: owner-controlled retention, deterministic JSON/YAML/Markdown plus original-evidence export, current-export deletion gates, object removal, retry state, and content-free receipts are implemented.
 - Design-partner hardening: the golden path now has automated axe/keyboard/reduced-motion coverage,
   application and worker telemetry has bounded metadata-only regression tests, the isolated clean-
   environment rehearsal passes, and operator onboarding is documented.
-- Open approval and external gates: execute the live Auth0 validation record against a configured
-  tenant; approve and implement ADR 0012 worker identity; approve ADR 0013 AWS deployment and ADR
-  0014 Bedrock extraction. Sanitized data remains disabled until those gates pass.
+- Accepted and implemented decisions: ADR 0012 worker identity, ADR 0013 AWS deployment, and ADR
+  0014 Bedrock extraction. Production Dockerfiles, validated Terraform, and a machine-checkable
+  readiness gate exist.
+- Open external gates: execute live Auth0 and AWS validation, evaluate/pin the Bedrock model,
+  rehearse restore and deletion boundaries, and rotate secrets. Sanitized data remains disabled.
 - Deferred post-V1 by product decision: ART-04 and Epic 8 coding-agent execution.
 
 ## Epic 0: Foundation Decisions
@@ -29,7 +33,7 @@
 | FND-03 | P0 | Resolve ADR 0005 | PostgreSQL relational-graph approach is accepted or replaced |
 | FND-04 | P0 | Resolve ADR 0007 | Engagement-isolation strategy is accepted or replaced |
 | FND-05 | P0 | Resolve ADR 0008 | Persistent-job strategy is accepted or replaced |
-| FND-06 | P0 | Select deployment, OIDC, and production extraction providers | Auth0 is accepted; AWS deployment and Bedrock extraction are selected in proposed ADRs 0013/0014 and require product-owner acceptance plus a verified development path |
+| FND-06 | P0 | Select deployment, OIDC, and production extraction providers | Auth0, AWS, and Bedrock are accepted; live validation remains required |
 
 ## Epic 1: Platform Spine
 
