@@ -1,10 +1,12 @@
 # AI-FDE
 
-AI-FDE is a stateful operating system for Forward Deployed Engineers.
+AI-FDE is a stateful operating system for internal AI teams and Forward Deployed Engineering
+leaders.
 
 It turns fragmented enterprise evidence into a verified model of how a company operates, helps a
 human FDE redesign one workflow, quantifies the business case, and produces an
-implementation-ready artifact packet.
+implementation-ready artifact packet. The goal is faster engagements, fewer delivery errors,
+stronger handoffs, provable economics, and more verified value from every model token.
 
 AI-FDE is not SellerFi. It is not a marketplace, a generic chatbot, or an autonomous coding
 agent. Its purpose is to make enterprise discovery and workflow transformation more trustworthy,
@@ -17,9 +19,9 @@ repeatable, and scalable.
 
 ## The product in one sentence
 
-AI-FDE helps one human FDE convert messy evidence into an auditable operating model and a safer,
-economically justified implementation plan without losing the rules, exceptions, uncertainty, or
-human decisions that make the business actually work.
+AI-FDE helps internal AI teams and FDE leaders turn messy customer evidence into an auditable
+operating model and an economically justified implementation plan—without losing the rules,
+exceptions, uncertainty, or human decisions that make the business actually work.
 
 ## Product walkthrough
 
@@ -27,12 +29,12 @@ These screenshots show the synthetic Acme Manufacturing acceptance journey. They
 customer data and should not be interpreted as proof that the external production gates have
 passed.
 
-| Engagement workspace | Human claim review |
-| -------------------- | ------------------ |
+| Engagement workspace                                                                                                      | Human claim review                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | ![AI-FDE engagement workspace with the synthetic Acme Manufacturing engagement](output/playwright/ai-fde-engagements.png) | ![AI-FDE candidate claim review with exact evidence and an open contradiction](output/playwright/ai-fde-claim-review.png) |
 
-| Sensitivity economics | Implementation artifact packet |
-| --------------------- | ------------------------------ |
+| Sensitivity economics                                                                                  | Implementation artifact packet                                                                                                   |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | ![AI-FDE deterministic low, base, and high economic scenarios](output/playwright/ai-fde-economics.png) | ![AI-FDE seven-artifact implementation packet with a version-pinned specification](output/playwright/ai-fde-artifact-packet.png) |
 
 ## The first-principles thesis
@@ -68,6 +70,18 @@ Each transition changes the trust level of the information. AI-FDE preserves tho
 instead of collapsing evidence, inference, approval, and execution into one answer.
 
 ## Problem statements
+
+The visible failure is not one isolated tooling gap. Internal AI delivery teams experience all
+four of these failures together:
+
+| Failure             | Why it happens                                                                 | Business consequence                                                   |
+| ------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Slow discovery      | Context is scattered across people, files, systems, and prior conversations    | Long time-to-value and fewer engagements per FDE                       |
+| Lost context        | Decisions, exceptions, and corrections are trapped in chat or static documents | Repeated discovery, inconsistent recommendations, and avoidable rework |
+| Weak specifications | Handoffs omit rules, controls, evidence, dependencies, or acceptance criteria  | Engineering churn, scope drift, and implementation errors              |
+| Untrusted AI output | Generated claims are not separated from verified facts                         | Manual rechecking, low adoption, and unsafe automation decisions       |
+
+The problem statements below describe the root causes behind those four operational failures.
 
 ### 1. Enterprise context is fragmented
 
@@ -108,19 +122,25 @@ creating leverage.
 
 ## Who AI-FDE is for
 
-The V1 user is a human Forward Deployed Engineer.
+AI-FDE is built for internal AI organizations that repeatedly discover, design, and deliver
+enterprise AI workflows. The accountable buyer is typically an FDE leader, Head of AI Delivery,
+AI transformation leader, or internal AI platform leader. They need delivery quality and capacity
+to improve without scaling headcount and model spend at the same rate.
+
+The V1 operator is a human Forward Deployed Engineer.
 
 The FDE owns the customer relationship, interprets evidence, resolves ambiguity, approves material
 decisions, and remains accountable for the final recommendation. AI-FDE accelerates the work and
 preserves its reasoning trail.
 
-The product is designed to create value for several stakeholders even though they are not all V1
-users:
+The product creates value across the internal delivery system even though these stakeholders are
+not all V1 operators:
 
 | Stakeholder                     | Current pain                                                   | Value from AI-FDE                                                                   |
 | ------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Human FDE                       | Reconstructs context manually and repeatedly                   | One governed workspace from evidence through specification                          |
-| FDE or delivery leader          | Quality depends on individual memory and method                | Repeatable lifecycle, explicit gates, and reviewable outputs                        |
+| FDE or AI delivery leader       | Quality and margin depend on individual memory and method      | Repeatable delivery, comparable economics, and more engagements per team            |
+| Internal AI platform team       | Cannot connect model usage to accepted delivery outcomes       | Outcome-linked token, latency, quality, and cost evidence                           |
 | Customer process owner          | Fears that automation will miss exceptions or remove authority | Exact provenance, visible controls, and human approval                              |
 | Engineering team                | Receives incomplete or contradictory requirements              | Version-pinned rules, architecture, integrations, controls, and acceptance criteria |
 | Executive sponsor               | Sees benefits without transparent assumptions                  | Reproducible low/base/high economics and explicit evidence quality                  |
@@ -130,7 +150,7 @@ Customer self-service is not a V1 goal. The cockpit is built for an expert opera
 
 ## Value proposition
 
-AI-FDE creates leverage in three places.
+AI-FDE creates leverage across the complete internal AI delivery lifecycle.
 
 ### Faster understanding
 
@@ -156,6 +176,20 @@ AI-FDE creates leverage in three places.
 - Let engineers inspect the evidence and decisions behind the specification.
 - Reduce avoidable rediscovery and specification drift.
 
+### Provable economics
+
+- Store assumptions, evidence classifications, formulas, and approvals with the workflow version.
+- Compare low, base, and high scenarios instead of presenting one optimistic estimate.
+- Reproduce expected ROI from versioned inputs without asking an LLM to perform arithmetic.
+- Preserve the boundary between an approved forecast and realized production value.
+
+### Efficient model use
+
+- Count model input and output tokens, including retries and rejected output.
+- Relate model cost to accepted claims and approved delivery artifacts.
+- Reuse verified structured context instead of repeatedly sending raw documents and chat history.
+- Optimize for maximum **verified value per token**, not minimum token count at any cost.
+
 The economic hypothesis is:
 
 ```text
@@ -164,11 +198,29 @@ AI-FDE value
   + implementation rework avoided
   + delivery capacity unlocked
   + decision and control risk reduced
-  - implementation and operating cost
+  - human review and change-management cost
+  - model, infrastructure, implementation, and operating cost
 ```
 
 This is a product hypothesis, not a realized customer ROI claim. V1 calculates scenario-based
 expected value. Live ROI telemetry is later work.
+
+## Outcome contract
+
+Every roadmap item should improve at least one measurable delivery outcome without weakening the
+trust model.
+
+| Outcome                 | Primary evidence                                                                       | Current boundary                                               |
+| ----------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Faster engagements      | Time from engagement creation to approved packet; discovery and review cycle time      | Baseline must be established with internal users               |
+| Fewer errors            | Escaped contradictions, stale-output use, correction rate, and implementation rework   | Synthetic invariants are tested; live error rate is unmeasured |
+| Better handoffs         | Packet completeness, engineering clarification count, and acceptance-criteria coverage | Packet generation works; real kickoff validation is next       |
+| Provable ROI            | Reproducible approved forecast, then expected-versus-realized value                    | Forecasting works; realized-value telemetry is post-deployment |
+| Lower token cost        | Model cost per accepted claim and per approved packet, with quality held constant      | Metadata exists; live Bedrock baseline and target remain open  |
+| Lower pull-request cost | Total tokens and dollars per accepted PR, plus rework and time-to-merge                | Post-V1; coding-agent execution is not currently implemented   |
+
+An improvement claim requires a baseline, a comparable measurement window, and a quality guardrail.
+Until those exist, AI-FDE reports absolute values and does not claim a percentage reduction.
 
 ## Jobs to be done
 
@@ -201,32 +253,25 @@ When an FDE begins an enterprise workflow engagement, AI-FDE should help them:
 
 ## Why existing approaches are insufficient
 
-### Documents and spreadsheets
+AI-FDE competes most often with a stack of partial solutions rather than one direct replacement.
 
-They are flexible and familiar, but provenance, state, dependencies, and staleness remain manual.
-They capture outputs more easily than they capture why those outputs should be trusted.
+| Alternative                              | What it does well                                      | Where it breaks for repeated AI delivery                                              | AI-FDE's role                                                        |
+| ---------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Documents and spreadsheets               | Flexible capture, analysis, and familiar collaboration | Provenance, dependencies, approval state, history, and staleness stay manual          | Converts source material into reviewed, versioned operating state    |
+| Generic copilots and chat assistants     | Fast exploration, drafting, and summarization          | Context is transient; fluent output can outrun evidence and authority                 | Separates candidate output from verified truth and durable decisions |
+| Knowledge bases and enterprise search    | Retrieval across many sources                          | Finding a passage does not resolve conflicts, assign authority, or approve a workflow | Adds claim review, temporal state, contradictions, and stage gates   |
+| Workflow and no-code automation products | Reliable execution of a known process                  | They assume the process, rules, exceptions, owners, and economics are already known   | Produces the approved target workflow and control requirements       |
+| Process-mining platforms                 | Reconstruct observable system events                   | Human judgment, off-system work, policy exceptions, and intent remain incomplete      | Combines system evidence with reviewed human and document evidence   |
+| Project management and ticketing tools   | Coordinate assigned implementation work                | Tickets fragment the reasoning, evidence, dependencies, and economics behind scope    | Generates a coherent, dependency-pinned engineering handoff          |
+| AI evaluation and observability tools    | Measure model quality, latency, tokens, and cost       | Model metrics are not automatically tied to accepted business outcomes                | Connects usage and quality evidence to verified engagement results   |
+| Consulting and delivery playbooks        | Encode expert methods and human judgment               | Quality remains difficult to reproduce, audit, compare, and compound across a team    | Turns the method into a governed, reusable operating lifecycle       |
+| General-purpose coding agents            | Accelerate implementation from a clear request         | Weak or incorrect specifications create fast rework; business authority is unclear    | Makes implementation intent trustworthy before bounded execution     |
 
-### Chatbots and retrieval systems
-
-They are useful interfaces for exploration. They do not, by themselves, create a reviewed,
-temporal, engagement-isolated model with explicit contradictions and approval history.
-
-### Process-mining tools
-
-They can reconstruct observable system events. They do not naturally capture undocumented human
-judgment, policy exceptions, authority, or evidence outside instrumented systems.
-
-### Workflow automation products
-
-They execute a designed process. They usually assume that the process, rules, ownership, and
-economics are already known.
-
-### General-purpose coding agents
-
-They can accelerate implementation after requirements are reliable. They should not decide what
-the business does, what risk is acceptable, or whether a generated claim is true.
-
-AI-FDE is the governed layer that turns enterprise context into approved implementation intent.
+AI-FDE does not need to replace these systems. Documents remain evidence. Copilots remain useful
+interfaces. Knowledge bases remain retrieval layers. Workflow products remain execution systems.
+Evaluation platforms remain model telemetry. Coding agents may later consume approved WorkOrders.
+AI-FDE is the governed layer that connects them: evidence becomes approved implementation intent,
+and model cost becomes attributable to accepted delivery outcomes.
 
 ## The canonical model
 
@@ -371,6 +416,47 @@ Current outputs include:
 
 These are decision inputs. They are not proof of adoption or realized ROI.
 
+## Maximum verified value per token
+
+Tokens are a variable delivery cost, not a measure of progress. The target is not the smallest
+prompt or the cheapest model call. The target is the most accepted, reusable business value for
+the complete model cost while correctness, security, and human authority remain hard constraints.
+
+```text
+verified value per token
+  = accepted outcome value
+  / all model input and output tokens
+```
+
+The denominator includes planning, retrieval, generation, retries, refusals, rejected claims, and
+repair work. A cheap first pass that causes more review or implementation rework is less efficient,
+not more efficient.
+
+Before realized financial value exists, AI-FDE uses outcome-specific proxies rather than inventing
+one universal dollar value:
+
+| Scope                    | Efficiency measure                                                          | Quality guardrail                                                      |
+| ------------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Claim extraction         | Tokens and model dollars per accepted material claim                        | Precision, recall, exact provenance, and reviewer correction rate      |
+| Engagement specification | Total model cost per approved, current artifact packet                      | Completeness, stale-output prevention, and engineering acceptance      |
+| Delivered workflow       | Model cost compared with approved and then realized economic value          | Adoption, control failures, operational errors, and realized result    |
+| Pull request, post-V1    | Planning + generation + repair tokens and dollars per accepted pull request | Required tests, human review, rework ratio, defects, and time-to-merge |
+
+AI-FDE should improve that ratio by:
+
+- retrieving only the exact evidence required for a decision;
+- reusing the verified Company Operating Model instead of resending raw source history;
+- generating typed, bounded outputs with explicit acceptance criteria;
+- pinning dependencies so unchanged context is reused and changed context is visible;
+- counting failed and rejected work instead of hiding it from the cost denominator;
+- comparing models and prompts against the same evaluation and outcome baseline.
+
+V1 records the extraction metadata needed to begin this measurement. Live Bedrock baselines and
+targets remain release gates. Pull-request token-cost reduction is a post-V1 metric because
+coding-agent execution is not implemented and no reduction can be claimed without a comparable
+baseline. The durable decision is recorded in
+[ADR 0015](docs/adr/0015-optimize-verified-value-per-token.md).
+
 ## The implementation packet
 
 AI-FDE generates seven current artifacts as one atomic, dependency-pinned packet:
@@ -495,13 +581,14 @@ AI-FDE should earn autonomy in controlled stages:
    production feedback.
 
 The long-term north star is that one human FDE can transform and maintain many customer
-environments without proportional growth in delivery headcount.
+environments without proportional growth in delivery headcount or model spend. Engagement volume,
+quality, realized value, and verified value per token must improve together.
 
 Autonomy is earned through evidence. It is not assumed because a model is capable.
 
 ## Measures of success
 
-The first milestone measures credibility rather than vanity usage:
+The first milestone measures credibility and delivery leverage rather than vanity usage:
 
 - 100% of accepted material assertions have inspectable evidence.
 - 100% of consequential operator and worker mutations appear in the audit trail.
@@ -512,9 +599,14 @@ The first milestone measures credibility rather than vanity usage:
 - Every current packet member references one approved dependency set.
 - An FDE can complete the golden path without editing the database or generated artifacts by hand.
 - The resulting packet is usable for a real engineering kickoff.
+- Engagement lead time is measurable from creation through approved packet.
+- Model tokens, cost, latency, and acceptance yield are attributable to the engagement.
+- Model cost per accepted material claim and approved packet is reproducible.
+- Handoff quality is measured through completeness, clarification requests, and engineering acceptance.
 
 Extraction precision, recall, latency, and cost thresholds must be set through the live Bedrock
-evaluation before sanitized customer use.
+evaluation before sanitized customer use. Reduction targets for discovery time, rework, token cost,
+and pull-request cost require internal baselines before AI-FDE can make a percentage claim.
 
 ## Run locally
 

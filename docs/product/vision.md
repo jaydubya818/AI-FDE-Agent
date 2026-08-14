@@ -4,11 +4,15 @@
 
 AI implementation fails when teams automate a stated process instead of the process people actually perform. Important rules live in meetings, inboxes, spreadsheets, exceptions, and individual judgment. Software can ship while the business outcome, user trust, and adoption remain unchanged.
 
-Forward Deployed Engineers solve this gap through investigation, process design, implementation, and customer judgment. Their work is valuable but difficult to scale because customer context is fragmented and much of the method remains manual.
+Forward Deployed Engineers solve this gap through investigation, process design, implementation,
+and customer judgment. Their work is valuable but difficult to scale because customer context is
+fragmented and much of the method remains manual. Internal AI teams experience the combined result:
+slow discovery, lost context, weak specifications, and untrusted AI output.
 
 ## The Product
 
-AI-FDE is a stateful operating system for a human FDE.
+AI-FDE is a stateful operating system for internal AI teams and FDE leaders. Its primary operator
+is a human FDE.
 
 It converts enterprise evidence into a durable Company Operating Model, or Business Twin. The model represents people, roles, systems, processes, rules, exceptions, decisions, risks, metrics, and their dependencies. Every material assertion retains its source, confidence, review state, and history.
 
@@ -22,6 +26,10 @@ AI-FDE uses that model to help the FDE:
 6. generate implementation-ready specifications;
 7. orchestrate bounded engineering work;
 8. learn from evaluation and production outcomes.
+
+The organization-level outcome is faster engagements, fewer delivery errors, stronger engineering
+handoffs, provable ROI, and maximum verified value per model token. Token reduction is never allowed
+to weaken provenance, correctness, security, evaluation, or human authority.
 
 ## Product Principle
 
@@ -48,4 +56,6 @@ Autonomy is earned by evidence. Humans retain authority over material business r
 
 ## North Star
 
-One human FDE, supported by AI-FDE, coding agents, and shared platform primitives, can transform and maintain many customer environments without proportional growth in engineering headcount.
+One human FDE, supported by AI-FDE, coding agents, and shared platform primitives, can transform and
+maintain many customer environments without proportional growth in engineering headcount or model
+spend. Engagement volume, quality, realized value, and verified value per token improve together.
