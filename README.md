@@ -21,6 +21,20 @@ AI-FDE helps one human FDE convert messy evidence into an auditable operating mo
 economically justified implementation plan without losing the rules, exceptions, uncertainty, or
 human decisions that make the business actually work.
 
+## Product walkthrough
+
+These screenshots show the synthetic Acme Manufacturing acceptance journey. They contain no
+customer data and should not be interpreted as proof that the external production gates have
+passed.
+
+| Engagement workspace | Human claim review |
+| -------------------- | ------------------ |
+| ![AI-FDE engagement workspace with the synthetic Acme Manufacturing engagement](output/playwright/ai-fde-engagements.png) | ![AI-FDE candidate claim review with exact evidence and an open contradiction](output/playwright/ai-fde-claim-review.png) |
+
+| Sensitivity economics | Implementation artifact packet |
+| --------------------- | ------------------------------ |
+| ![AI-FDE deterministic low, base, and high economic scenarios](output/playwright/ai-fde-economics.png) | ![AI-FDE seven-artifact implementation packet with a version-pinned specification](output/playwright/ai-fde-artifact-packet.png) |
+
 ## The first-principles thesis
 
 Enterprise automation depends on an accurate answer to one question:
