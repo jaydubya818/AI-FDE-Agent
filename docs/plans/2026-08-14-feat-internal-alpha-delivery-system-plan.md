@@ -1,7 +1,7 @@
 ---
 title: "feat: Build the internal alpha delivery system"
 type: feat
-status: active
+status: completed
 date: 2026-08-14
 ---
 
@@ -269,7 +269,7 @@ The emitted record remains metadata-only and must never contain customer content
       `git diff --check`.
 - [x] Confirm no credentials, real customer data, Terraform state, runtime databases, or untracked
       exports are committed.
-- [ ] Record actual test evidence, close this plan, merge to main, and push.
+- [x] Record actual test evidence, close this plan, merge to main, and push.
 
 ## Acceptance Criteria
 
