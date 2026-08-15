@@ -25,7 +25,8 @@ invariant holds; it must not merely show that a page rendered or an endpoint ret
 
 ### In scope for repository-local validation
 
-- The complete synthetic Acme evidence-to-specification journey.
+- The complete synthetic Acme evidence-to-specification journey and a three-profile internal-alpha
+  journey covering exception, handoff, and straight-through workflows.
 - API, worker, PostgreSQL, MinIO, and production Next.js integration.
 - Evidence provenance, candidate-claim review, contradictions, workflows, allocation, economics,
   artifact generation, audit, export, deletion, and engagement isolation.
@@ -33,6 +34,7 @@ invariant holds; it must not merely show that a page rendered or an endpoint ret
 - Static validation of AWS Terraform and provider contracts.
 - Accessibility, keyboard operation, and reduced-motion behavior for the golden cockpit flow.
 - Token, latency, cost, and provider-run metadata persistence.
+- Structured operator/engineering assessments, comparison thresholds, and scorecard derivations.
 
 ### Out of scope for a local pass
 
@@ -48,35 +50,37 @@ use.
 
 ## Test model
 
-| Layer                 | Risk controlled                              | Examples                                                | Command                | Cadence                           |
-| --------------------- | -------------------------------------------- | ------------------------------------------------------- | ---------------------- | --------------------------------- |
-| Unit                  | Incorrect local logic                        | parsers, schemas, calculations, provider validation     | `make test`            | every change                      |
-| Service integration   | Incorrect persistence or provider boundaries | database transactions, object storage, jobs             | `make test`            | every change                      |
-| Domain acceptance     | Broken lifecycle or invariant                | provenance, approval gates, staleness, export, deletion | `make acceptance`      | every change                      |
-| Isolation             | Cross-engagement disclosure or mutation      | application authorization and PostgreSQL RLS            | `make acceptance`      | every change                      |
-| Browser accessibility | Inaccessible operator control                | axe, keyboard order, focus, reduced motion              | `make accessibility`   | every UI change and release       |
-| Browser golden path   | Broken runtime integration                   | seed through seven-artifact packet                      | `make demo-rehearsal`  | merge candidate and demo          |
-| Clean build           | Environmental drift                          | empty migration, seed, tests, static checks, build      | `make rehearse`        | merge candidate and release       |
-| Infrastructure static | Invalid or unsafe declared stack             | Terraform format and validation                         | `make terraform-check` | infrastructure change and release |
-| External staging      | Local assumptions fail in reality            | live Auth0, AWS, Bedrock, restore, deletion, rollback   | go/no-go record        | every deployed release            |
+| Layer                  | Risk controlled                                          | Examples                                                 | Command                | Cadence                           |
+| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------- | ---------------------- | --------------------------------- |
+| Unit                   | Incorrect local logic                                    | parsers, schemas, calculations, provider validation      | `make test`            | every change                      |
+| Service integration    | Incorrect persistence or provider boundaries             | database transactions, object storage, jobs              | `make test`            | every change                      |
+| Domain acceptance      | Broken lifecycle or invariant                            | provenance, approval gates, staleness, export, deletion  | `make acceptance`      | every change                      |
+| Isolation              | Cross-engagement disclosure or mutation                  | application authorization and PostgreSQL RLS             | `make acceptance`      | every change                      |
+| Browser accessibility  | Inaccessible operator control                            | axe, keyboard order, focus, reduced motion               | `make accessibility`   | every UI change and release       |
+| Browser golden path    | Broken runtime integration                               | seed through seven-artifact packet                       | `make demo-rehearsal`  | merge candidate and demo          |
+| Browser internal alpha | Workflow-specific coupling or false comparison readiness | three workflow packets, assessments, and locked baseline | `make alpha-rehearsal` | merge candidate and alpha session |
+| Clean build            | Environmental drift                                      | empty migration, seed, tests, static checks, build       | `make rehearse`        | merge candidate and release       |
+| Infrastructure static  | Invalid or unsafe declared stack                         | Terraform format and validation                          | `make terraform-check` | infrastructure change and release |
+| External staging       | Local assumptions fail in reality                        | live Auth0, AWS, Bedrock, restore, deletion, rollback    | go/no-go record        | every deployed release            |
 
 ## Requirements-to-test traceability
 
-| Product invariant                        | Primary proof                                | Secondary proof                                   |
-| ---------------------------------------- | -------------------------------------------- | ------------------------------------------------- |
-| Evidence cannot create verified truth    | claim-review acceptance cases                | browser reviews every candidate                   |
-| Every material claim has exact evidence  | provenance acceptance cases                  | browser asserts exact-evidence panels             |
-| Human and model confidence are separate  | claim schema and service tests               | packet contains verified assertions only          |
-| Blocking conflicts remain visible        | contradiction acceptance cases               | browser supplies reason before resolution         |
-| Material stages require approval         | workflow/economics/artifact acceptance cases | browser clicks each public approval control       |
-| Approved versions are immutable          | version-history acceptance cases             | packet pins approved dependency IDs               |
-| Upstream changes stale downstream work   | staleness acceptance cases                   | packet-current assertions                         |
-| Economics reproduce deterministically    | economics unit and acceptance cases          | browser verifies ordered scenarios                |
-| Engagements are isolated twice           | authorization and RLS suites                 | dedicated empty database rehearsal                |
-| Jobs persist and expose failure state    | worker/job integration cases                 | demo polls completed worker output                |
-| Uploaded content cannot change authority | parser/provider validation cases             | deterministic fixture remains untrusted input     |
-| Synthetic state is unmistakable          | fixture/config tests                         | browser asserts Synthetic workspace before action |
-| Production claims require live proof     | fail-closed configuration tests              | unchecked external go/no-go record                |
+| Product invariant                          | Primary proof                                | Secondary proof                                   |
+| ------------------------------------------ | -------------------------------------------- | ------------------------------------------------- |
+| Evidence cannot create verified truth      | claim-review acceptance cases                | browser reviews every candidate                   |
+| Every material claim has exact evidence    | provenance acceptance cases                  | browser asserts exact-evidence panels             |
+| Human and model confidence are separate    | claim schema and service tests               | packet contains verified assertions only          |
+| Blocking conflicts remain visible          | contradiction acceptance cases               | browser supplies reason before resolution         |
+| Material stages require approval           | workflow/economics/artifact acceptance cases | browser clicks each public approval control       |
+| Approved versions are immutable            | version-history acceptance cases             | packet pins approved dependency IDs               |
+| Upstream changes stale downstream work     | staleness acceptance cases                   | packet-current assertions                         |
+| Economics reproduce deterministically      | economics unit and acceptance cases          | browser verifies ordered scenarios                |
+| Engagements are isolated twice             | authorization and RLS suites                 | dedicated empty database rehearsal                |
+| Jobs persist and expose failure state      | worker/job integration cases                 | demo polls completed worker output                |
+| Uploaded content cannot change authority   | parser/provider validation cases             | deterministic fixture remains untrusted input     |
+| Synthetic state is unmistakable            | fixture/config tests                         | browser asserts Synthetic workspace before action |
+| Production claims require live proof       | fail-closed configuration tests              | unchecked external go/no-go record                |
+| Comparative claims require matched cohorts | assessment and aggregate scorecard cases     | browser leaves the conventional baseline locked   |
 
 ## Critical browser journey
 
@@ -102,6 +106,12 @@ The test fails on any AI-FDE API response at or above HTTP 400, failed AI-FDE AP
 error-level browser console event. Playwright retains traces and screenshots on failure. A final
 success screenshot is saved locally for human inspection and excluded from Git.
 
+The internal-alpha browser journey repeats the governed lifecycle for Accounts Payable, Employee
+Access Onboarding, and Customer Support Triage. It records one AI-FDE operator assessment per
+workflow, verifies `3/3` packets, confirms the conventional baseline remains `0/3`, and writes a
+reviewed scorecard screenshot for repository orientation. It does not fabricate human usability or
+production model results.
+
 ## Negative, boundary, and recovery coverage
 
 The critical browser test remains intentionally narrow. The following permutations belong at the
@@ -119,6 +129,12 @@ acceptance or service layer so the browser run stays fast and diagnostic:
 - Sanitized data remains disabled unless a current validation record is supplied.
 - Provider timeout, refusal, malformed schema, bad provenance, and retry exhaustion are observable.
 - Scenario values that violate conservative ordering are rejected.
+- A completed AI-FDE assessment is rejected before the seven-artifact packet exists.
+- Assessment updates preserve one current record while appending audit history without free-text
+  notes.
+- Comparison readiness remains false until both methods cover three distinct workflows.
+- Readiness validation rejects mutable or mismatched images, disabled ECS rollback/version
+  consistency, and incomplete or mismatched Bedrock evaluation jobs.
 
 The rehearsal script separately verifies operational recovery:
 
@@ -132,14 +148,15 @@ The rehearsal script separately verifies operational recovery:
 
 | Data class                   | Allowed environment               | Rule                                              |
 | ---------------------------- | --------------------------------- | ------------------------------------------------- |
-| Synthetic Acme fixture       | local, CI, internal demo, staging | visibly labeled; safe to commit                   |
+| Three synthetic fixtures     | local, CI, internal demo, staging | visibly labeled; safe to commit                   |
 | Generated synthetic variants | local, CI, internal demo          | must be reviewed for accidental real identifiers  |
 | Sanitized customer data      | deployed staging only after GO    | disabled until every external gate passes         |
 | Raw customer data            | none in V1                        | never place in this repository or local rehearsal |
 
 Test output must not contain credentials, cookies, tokens, raw prompts, raw model responses, or real
 customer evidence. Failure logs use bounded tails and metadata. Runtime databases, exports,
-screenshots generated by a local rehearsal, Playwright reports, and Terraform state remain ignored.
+disposable demo screenshots, Playwright reports, and Terraform state remain ignored. The reviewed
+internal-alpha scorecard screenshot is intentionally committed as synthetic product evidence.
 
 ## Environment contract
 
@@ -246,6 +263,13 @@ isolation, provenance, or deletion invariant.
 - No hidden database edit, skipped decision, console error, or failed API request occurred.
 - Demo limitations are stated before the talk track.
 
+### Internal-alpha gate
+
+- `make alpha-rehearsal` passes from empty infrastructure.
+- Three workflow packets and three AI-FDE operator assessment records are visible.
+- The incomplete conventional cohort prevents comparative output.
+- Human alpha sessions follow the separate runbook before staging entry.
+
 ### Design-partner gate
 
 Every line in the design-partner go/no-go record passes for the exact commit, image digests,
@@ -287,6 +311,7 @@ make lint              # Ruff, mypy, ESLint, and TypeScript
 make terraform-check   # Terraform format and static validation
 make rehearse          # fresh infrastructure, migration, tests, static checks, build
 make demo-rehearsal     # production-mode synthetic browser golden path
+make alpha-rehearsal    # production-mode three-profile internal-alpha journey
 ```
 
 The sample-demo procedure and actual local rehearsal record are in

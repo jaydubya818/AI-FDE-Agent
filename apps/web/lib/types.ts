@@ -243,3 +243,105 @@ export type EngagementDeletionReceipt = {
   requested_at: string;
   completed_at: string | null;
 };
+
+export type DeliveryMethod = "ai_fde" | "conventional";
+export type AssessmentPerspective = "operator" | "engineering";
+export type AssessmentOutcome = "completed" | "blocked" | "abandoned";
+
+export type EngagementAssessment = {
+  id: string;
+  engagement_id: string;
+  evaluator_id: string;
+  delivery_method: DeliveryMethod;
+  perspective: AssessmentPerspective;
+  outcome: AssessmentOutcome;
+  duration_minutes: number;
+  usefulness_score: number;
+  clarification_count: number;
+  rework_count: number;
+  workaround_count: number;
+  trust_failure_count: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DeliveryScorecard = {
+  engagement: {
+    id: string;
+    name: string;
+    slug: string;
+    workflow_name: string;
+  };
+  milestones: {
+    engagement_created: boolean;
+    evidence_ready: boolean;
+    review_completed: boolean;
+    workflows_approved: boolean;
+    economics_approved: boolean;
+    implementation_packet_completed: boolean;
+  };
+  claims: {
+    total: number;
+    candidate: number;
+    accepted: number;
+    rejected: number;
+    deferred: number;
+    material_accepted: number;
+  };
+  contradictions: {
+    total: number;
+    resolved: number;
+    blocking_open: number;
+  };
+  packet: {
+    complete: boolean;
+    artifact_count: number;
+    expected_artifact_count: number;
+    packet_version: number | null;
+    completed_at: string | null;
+  };
+  provider: {
+    run_count: number;
+    providers: string[];
+    model_ids: string[];
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    latency_ms: number;
+    tokens_per_accepted_material_claim: number | null;
+  };
+  assessments: EngagementAssessment[];
+};
+
+export type MethodComparison = {
+  completed_operator_assessment_count: number;
+  distinct_workflow_count: number;
+  average_duration_minutes: number | null;
+  average_usefulness_score: number | null;
+  average_clarification_count: number | null;
+  average_rework_count: number | null;
+  average_workaround_count: number | null;
+  average_trust_failure_count: number | null;
+};
+
+export type InternalAlphaScorecard = {
+  program: "internal-alpha";
+  profile_count: number;
+  packet_complete_count: number;
+  accepted_material_claim_count: number;
+  total_provider_tokens: number;
+  engagements: DeliveryScorecard[];
+  comparison: {
+    ready: boolean;
+    minimum_completed_operator_assessments_per_method: number;
+    methods: Record<DeliveryMethod, MethodComparison>;
+    absolute_difference: {
+      duration_minutes: number;
+      rework_count: number;
+      trust_failure_count: number;
+      usefulness_score: number;
+    } | null;
+    reason: string | null;
+  };
+};

@@ -128,6 +128,22 @@ def test_viewer_can_read_but_cannot_mutate_engagement(
         )
         assert denied.status_code == 403
         assert denied.json() == {"detail": "This engagement membership is read-only."}
+        assessment_denied = client.post(
+            f"/api/engagements/{engagement_id}/assessments",
+            json={
+                "delivery_method": "conventional",
+                "perspective": "operator",
+                "outcome": "blocked",
+                "duration_minutes": 30,
+                "usefulness_score": 2,
+                "clarification_count": 1,
+                "rework_count": 0,
+                "workaround_count": 0,
+                "trust_failure_count": 1,
+            },
+        )
+        assert assessment_denied.status_code == 403
+        assert assessment_denied.json() == {"detail": "This engagement membership is read-only."}
 
     with operator_session(owner.id) as session:
         evidence_count = session.scalar(

@@ -21,7 +21,7 @@ from ai_fde.models import (
 )
 from ai_fde.modules.evidence.parser import parse_evidence
 from ai_fde.modules.knowledge.extractor import (
-    DeterministicAcmeExtractor,
+    DeterministicFixtureExtractor,
     ExtractionProvider,
 )
 from ai_fde.modules.shared import publish_domain_event, record_audit
@@ -74,7 +74,7 @@ def process_job(
     if asset is None or asset.engagement_id != job.engagement_id:
         raise JobProcessingError("The evidence asset is not available in this engagement.")
 
-    resolved_extractor = extractor or DeterministicAcmeExtractor()
+    resolved_extractor = extractor or DeterministicFixtureExtractor()
     asset.status = "processing"
     asset.error_message = None
     job.progress = 15

@@ -1,6 +1,6 @@
 # Design-Partner Go/No-Go Record
 
-**Current repository state (2026-08-12): NO-GO for sanitized customer data.**
+**Current repository state (2026-08-14): NO-GO for sanitized customer data.**
 
 Use one copy of this record per deployed release. A local test, Terraform validation, or unchecked
 record cannot be interpreted as approval. Never record credentials, tokens, customer evidence, or
@@ -8,15 +8,15 @@ raw model requests/responses here.
 
 ## Release identity
 
-| Field | Value |
-| --- | --- |
-| Environment | |
-| Git commit | |
-| Web/API/worker image digests | |
-| AWS account and region | |
-| Bedrock model/inference-profile ID | |
-| FDE owner | |
-| Validation date/time | |
+| Field                              | Value |
+| ---------------------------------- | ----- |
+| Environment                        |       |
+| Git commit                         |       |
+| Web/API/worker image digests       |       |
+| AWS account and region             |       |
+| Bedrock model/inference-profile ID |       |
+| FDE owner                          |       |
+| Validation date/time               |       |
 
 ## Implemented-code gates
 
@@ -25,6 +25,8 @@ raw model requests/responses here.
 - [ ] Alembic clean upgrade, safe downgrade, re-upgrade, and `alembic check` pass.
 - [ ] Terraform formatting and validation pass for the release commit.
 - [ ] Images are built from the release commit and referenced by digest.
+- [ ] ECS task definitions match those digests, enforce version consistency, and enable automatic
+      deployment rollback.
 - [ ] Coding-agent execution and autonomous remediation remain disabled.
 
 ## Live identity and deployment gates
@@ -36,6 +38,7 @@ raw model requests/responses here.
 - [ ] ECS tasks have no public IP; RDS is private, encrypted, TLS-forced, Multi-AZ, and PITR-ready.
 - [ ] S3 blocks public access, uses the expected KMS key, and has versioning disabled.
 - [ ] Bedrock invocation logging is disabled and the selected model passed the fixed evaluation.
+- [ ] The completed Bedrock evaluation job references the exact configured model/inference profile.
 - [ ] Runtime secrets were rotated and the prior version was invalidated; ID: `________________`.
 
 ## Recovery and deletion gates
@@ -48,14 +51,16 @@ raw model requests/responses here.
 
 ## Automated readiness record
 
-Run `scripts/verify_design_partner_readiness.py` with the record IDs above.
+Run `scripts/verify_design_partner_readiness.py` with the release commit, immutable image digests,
+completed Bedrock evaluation job, configured model ID, and the record IDs above. Follow the
+[production-equivalent staging runbook](production-equivalent-staging.md) for the exact command.
 
-| Field | Value |
-| --- | --- |
-| Readiness validation ID | |
-| Signed record location | |
-| Machine-check result | Pass / Fail |
-| Reviewer | |
+| Field                   | Value       |
+| ----------------------- | ----------- |
+| Readiness validation ID |             |
+| Signed record location  |             |
+| Machine-check result    | Pass / Fail |
+| Reviewer                |             |
 
 ## Decision
 
@@ -63,6 +68,6 @@ Run `scripts/verify_design_partner_readiness.py` with the record IDs above.
       reviewed Terraform change.
 - [ ] **NO-GO:** one or more gates are incomplete or failed; keep sanitized data disabled.
 
-Decision owner: `________________`  Date/time: `________________`
+Decision owner: `________________` Date/time: `________________`
 
 Notes or linked tickets (no sensitive content):

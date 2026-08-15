@@ -36,6 +36,59 @@ class EngagementWorkspaceResponse(BaseModel):
     counts: dict[str, int]
 
 
+class EngagementAssessmentCreate(BaseModel):
+    delivery_method: Literal["ai_fde", "conventional"]
+    perspective: Literal["operator", "engineering"]
+    outcome: Literal["completed", "blocked", "abandoned"]
+    duration_minutes: int = Field(ge=1, le=10_080)
+    usefulness_score: int = Field(ge=1, le=5)
+    clarification_count: int = Field(default=0, ge=0, le=10_000)
+    rework_count: int = Field(default=0, ge=0, le=10_000)
+    workaround_count: int = Field(default=0, ge=0, le=10_000)
+    trust_failure_count: int = Field(default=0, ge=0, le=10_000)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class EngagementAssessmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    engagement_id: UUID
+    evaluator_id: UUID
+    delivery_method: str
+    perspective: str
+    outcome: str
+    duration_minutes: int
+    usefulness_score: int
+    clarification_count: int
+    rework_count: int
+    workaround_count: int
+    trust_failure_count: int
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DeliveryScorecardResponse(BaseModel):
+    engagement: dict[str, Any]
+    milestones: dict[str, bool]
+    claims: dict[str, int]
+    contradictions: dict[str, int]
+    packet: dict[str, Any]
+    provider: dict[str, Any]
+    assessments: list[dict[str, Any]]
+
+
+class InternalAlphaScorecardResponse(BaseModel):
+    program: str
+    profile_count: int
+    packet_complete_count: int
+    accepted_material_claim_count: int
+    total_provider_tokens: int
+    engagements: list[DeliveryScorecardResponse]
+    comparison: dict[str, Any]
+
+
 class AuthenticatedOperatorResponse(BaseModel):
     id: UUID
     display_name: str

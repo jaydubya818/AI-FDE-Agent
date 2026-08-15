@@ -154,10 +154,11 @@ resource "aws_ecs_task_definition" "web" {
   execution_role_arn       = aws_iam_role.execution["web"].arn
   task_role_arn            = aws_iam_role.task["web"].arn
   container_definitions = jsonencode([{
-    name         = "web"
-    image        = var.web_image
-    essential    = true
-    portMappings = [{ containerPort = 3000, hostPort = 3000, protocol = "tcp" }]
+    name               = "web"
+    image              = var.web_image
+    essential          = true
+    versionConsistency = "enabled"
+    portMappings       = [{ containerPort = 3000, hostPort = 3000, protocol = "tcp" }]
     environment = [
       { name = "NODE_ENV", value = "production" },
       { name = "HOSTNAME", value = "0.0.0.0" },
@@ -185,10 +186,11 @@ resource "aws_ecs_task_definition" "api" {
   execution_role_arn       = aws_iam_role.execution["api"].arn
   task_role_arn            = aws_iam_role.task["api"].arn
   container_definitions = jsonencode([{
-    name         = "api"
-    image        = var.api_image
-    essential    = true
-    portMappings = [{ containerPort = 8000, hostPort = 8000, protocol = "tcp" }]
+    name               = "api"
+    image              = var.api_image
+    essential          = true
+    versionConsistency = "enabled"
+    portMappings       = [{ containerPort = 8000, hostPort = 8000, protocol = "tcp" }]
     environment = concat(local.common_python_environment, [
       { name = "AI_FDE_RUNTIME_ROLE", value = "api" },
     ])
@@ -222,9 +224,10 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.execution["worker"].arn
   task_role_arn            = aws_iam_role.task["worker"].arn
   container_definitions = jsonencode([{
-    name      = "worker"
-    image     = var.worker_image
-    essential = true
+    name               = "worker"
+    image              = var.worker_image
+    essential          = true
+    versionConsistency = "enabled"
     environment = concat(local.common_python_environment, [
       { name = "AI_FDE_RUNTIME_ROLE", value = "worker" },
     ])
@@ -252,10 +255,11 @@ resource "aws_ecs_task_definition" "migration" {
   execution_role_arn       = aws_iam_role.execution["migration"].arn
   task_role_arn            = aws_iam_role.task["migration"].arn
   container_definitions = jsonencode([{
-    name      = "migration"
-    image     = var.api_image
-    essential = true
-    command   = ["python", "scripts/bootstrap_production_database.py"]
+    name               = "migration"
+    image              = var.api_image
+    essential          = true
+    versionConsistency = "enabled"
+    command            = ["python", "scripts/bootstrap_production_database.py"]
     environment = concat(local.common_python_environment, [
       { name = "AI_FDE_RUNTIME_ROLE", value = "migration" },
     ])

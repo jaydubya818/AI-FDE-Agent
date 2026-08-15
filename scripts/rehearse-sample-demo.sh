@@ -7,11 +7,29 @@ demo_minio_api_port="${AI_FDE_DEMO_MINIO_API_PORT:-59030}"
 demo_minio_console_port="${AI_FDE_DEMO_MINIO_CONSOLE_PORT:-59031}"
 demo_api_port="${AI_FDE_DEMO_API_PORT:-8101}"
 demo_web_port="${AI_FDE_DEMO_WEB_PORT:-3101}"
+demo_test_script="${AI_FDE_DEMO_TEST_SCRIPT:-test:e2e:golden}"
+demo_evidence_name="${AI_FDE_DEMO_EVIDENCE_NAME:-demo}"
 demo_log_directory="$(mktemp -d "${TMPDIR:-/tmp}/ai-fde-demo.XXXXXX")"
 demo_api_pid=""
 demo_worker_pid=""
 demo_web_pid=""
 demo_started_at="${SECONDS}"
+
+case "${demo_test_script}" in
+  test:e2e:golden | test:e2e:alpha) ;;
+  *)
+    echo "AI_FDE_DEMO_TEST_SCRIPT must be test:e2e:golden or test:e2e:alpha."
+    exit 1
+    ;;
+esac
+
+case "${demo_evidence_name}" in
+  demo | internal-alpha) ;;
+  *)
+    echo "AI_FDE_DEMO_EVIDENCE_NAME must be demo or internal-alpha."
+    exit 1
+    ;;
+esac
 
 cleanup() {
   demo_status=$?
@@ -131,12 +149,16 @@ demo_web_pid=$!
 wait_for_url "http://localhost:${demo_api_port}/api/health" "API"
 wait_for_url "http://localhost:${demo_web_port}" "Operator Cockpit"
 
-mkdir -p output/playwright/demo
+mkdir -p "output/playwright/${demo_evidence_name}"
 AI_FDE_PLAYWRIGHT_BASE_URL="http://localhost:${demo_web_port}" \
 AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER="true" \
 AI_FDE_DEMO_SCREENSHOT="$(pwd)/output/playwright/demo/demo-complete.png" \
-pnpm --dir apps/web run test:e2e:golden
+pnpm --dir apps/web run "${demo_test_script}"
 
 demo_duration=$((SECONDS - demo_started_at))
-echo "Sample demo rehearsal passed in ${demo_duration} seconds."
-echo "Final browser evidence: output/playwright/demo/demo-complete.png"
+echo "Sample ${demo_evidence_name} rehearsal passed in ${demo_duration} seconds."
+if [[ "${demo_test_script}" == "test:e2e:alpha" ]]; then
+  echo "Final browser evidence: output/playwright/internal-alpha/internal-alpha-scorecard.png"
+else
+  echo "Final browser evidence: output/playwright/demo/demo-complete.png"
+fi

@@ -27,6 +27,7 @@ from ai_fde.models import (
     Contradiction,
     EconomicCase,
     Engagement,
+    EngagementAssessment,
     EngagementDeletionReceipt,
     EngagementExport,
     EngagementMember,
@@ -51,6 +52,7 @@ ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 FINGERPRINT_MODELS: tuple[type[Any], ...] = (
     EngagementMember,
+    EngagementAssessment,
     EvidenceAsset,
     EvidenceSegment,
     ExtractionRun,

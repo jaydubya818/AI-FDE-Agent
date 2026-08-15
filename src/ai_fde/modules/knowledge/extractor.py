@@ -57,17 +57,17 @@ class ExtractionProvider(Protocol):
     ) -> ExtractionResult: ...
 
 
-class DeterministicAcmeExtractor:
-    """Narrow, transparent extractor for the first fixture-backed vertical slice."""
+class DeterministicFixtureExtractor:
+    """Transparent pattern extractor for committed synthetic fixture profiles only."""
 
-    name = "deterministic-acme-patterns"
-    version = "1.0.0"
+    name = "deterministic-fixture-patterns"
+    version = "2.0.0"
     schema_version = "claim-v1"
-    prompt_version = "fixture-rules-v1"
+    prompt_version = "fixture-rules-v2"
     model_id: str | None = None
 
     _owns = re.compile(
-        r"(?P<person>[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)+)\s+owns\s+"
+        r"(?P<person>[A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+)+)[ \t]+owns[ \t]+"
         r"(?P<process>[A-Z][A-Za-z &-]+?)(?:\.|$)"
     )
     _uses = re.compile(
@@ -83,6 +83,23 @@ class DeterministicAcmeExtractor:
         r"(?:may|are)\s+(?:be\s+)?approved by (?:the )?"
         r"(?P<approver>[A-Z][A-Za-z ]+?)(?=\s+when|\.|$)",
         flags=re.IGNORECASE,
+    )
+    _named_approval_rule = re.compile(
+        r"(?P<subject>[A-Z][A-Za-z &-]+ approval):\s*"
+        r"(?P<condition>.+?)\s+require(?:s)?\s+"
+        r"(?P<approver>[A-Z][A-Za-z &-]+?)\s+approval(?:\.|$)"
+    )
+    _precedes = re.compile(
+        r"(?P<subject>[A-Z][A-Za-z0-9 &'/-]+?)\s+precedes\s+"
+        r"(?P<object>[A-Z][A-Za-z0-9 &'/-]+?)(?:\.|$)"
+    )
+    _hands_off = re.compile(
+        r"(?P<subject>[A-Z][A-Za-z0-9 &'/-]+?)\s+hands off to\s+"
+        r"(?P<object>[A-Z][A-Za-z0-9 &'/-]+?)(?:\.|$)"
+    )
+    _governed_by = re.compile(
+        r"(?P<subject>[A-Z][A-Za-z0-9 &'/-]+?)\s+is governed by\s+"
+        r"(?P<object>[A-Z][A-Za-z0-9 &'/-]+?)(?:\.|$)"
     )
     _explicit_entity = re.compile(
         r"(?P<type>Person|System|Process|Department|Role):\s*(?P<name>[^\n.]+)",
@@ -101,7 +118,11 @@ class DeterministicAcmeExtractor:
         claims.extend(self._extract_ownership(text))
         claims.extend(self._extract_system_usage(text))
         claims.extend(self._extract_approval_rules(text))
+        claims.extend(self._extract_named_approval_rules(text))
         claims.extend(self._extract_approval_exceptions(text))
+        claims.extend(self._extract_sequences(text))
+        claims.extend(self._extract_handoffs(text))
+        claims.extend(self._extract_governance(text))
         claims.extend(self._extract_explicit_entities(text))
         return ExtractionResult(
             claims=self._deduplicate(claims),
@@ -199,6 +220,96 @@ class DeterministicAcmeExtractor:
                         "is_exception": True,
                     },
                     confidence="0.9600",
+                )
+            )
+        return output
+
+    def _extract_named_approval_rules(self, text: str) -> list[ExtractedClaim]:
+        output: list[ExtractedClaim] = []
+        for match in self._named_approval_rule.finditer(text):
+            subject = self._clean(match.group("subject"))
+            condition = self._clean(match.group("condition"))
+            approver = self._clean(match.group("approver"))
+            output.append(
+                self._claim(
+                    match,
+                    claim_kind="rule",
+                    subject_text=subject,
+                    predicate="REQUIRES_APPROVAL",
+                    object_text=approver,
+                    summary=f"{condition} require {approver} approval.",
+                    payload={
+                        "subject": {"type": "process", "name": subject},
+                        "object": {"type": "role", "name": approver},
+                        "condition": condition,
+                        "is_exception": False,
+                    },
+                    confidence="0.9900",
+                )
+            )
+        return output
+
+    def _extract_sequences(self, text: str) -> list[ExtractedClaim]:
+        return self._extract_binary_relationships(
+            text,
+            pattern=self._precedes,
+            predicate="PRECEDES",
+            subject_type="process",
+            object_type="process",
+            summary_template="{subject} precedes {object}.",
+            confidence="0.9800",
+        )
+
+    def _extract_handoffs(self, text: str) -> list[ExtractedClaim]:
+        return self._extract_binary_relationships(
+            text,
+            pattern=self._hands_off,
+            predicate="HANDS_OFF_TO",
+            subject_type="role",
+            object_type="role",
+            summary_template="{subject} hands off to {object}.",
+            confidence="0.9800",
+        )
+
+    def _extract_governance(self, text: str) -> list[ExtractedClaim]:
+        return self._extract_binary_relationships(
+            text,
+            pattern=self._governed_by,
+            predicate="GOVERNED_BY",
+            subject_type="process",
+            object_type="policy",
+            summary_template="{subject} is governed by {object}.",
+            confidence="0.9900",
+        )
+
+    def _extract_binary_relationships(
+        self,
+        text: str,
+        *,
+        pattern: re.Pattern[str],
+        predicate: str,
+        subject_type: str,
+        object_type: str,
+        summary_template: str,
+        confidence: str,
+    ) -> list[ExtractedClaim]:
+        output: list[ExtractedClaim] = []
+        for match in pattern.finditer(text):
+            subject = self._clean(match.group("subject"))
+            object_text = self._clean(match.group("object"))
+            output.append(
+                self._claim(
+                    match,
+                    claim_kind="relationship",
+                    subject_text=subject,
+                    predicate=predicate,
+                    object_text=object_text,
+                    summary=summary_template.format(subject=subject, object=object_text),
+                    payload={
+                        "subject": {"type": subject_type, "name": subject},
+                        "object": {"type": object_type, "name": object_text},
+                    },
+                    confidence=confidence,
                 )
             )
         return output

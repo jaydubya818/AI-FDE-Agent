@@ -14,6 +14,8 @@ roles. It does not make the product sanitized-data ready by itself.
 - S3 versioning and Bedrock invocation logging are intentionally not configured. The live
   readiness command fails if Bedrock invocation logging is enabled out of band.
 - Image inputs must be immutable ECR URIs with digests, not mutable tags.
+- Every task definition enables ECS version consistency, and every long-running service enables
+  deployment-circuit-breaker rollback.
 
 ## Bootstrap and deploy
 
@@ -64,6 +66,12 @@ PYTHONPATH=src uv run python scripts/verify_design_partner_readiness.py \
   --db-instance <db-identifier> \
   --cluster <cluster> \
   --migration-family <migration-task-family> \
+  --git-commit <40-character-commit> \
+  --web-image <web-image@sha256:digest> \
+  --api-image <api-image@sha256:digest> \
+  --worker-image <worker-image@sha256:digest> \
+  --bedrock-evaluation-job <completed-job-id-or-arn> \
+  --bedrock-model-id <evaluated-model-or-inference-profile-id> \
   --api-secret <api-secret-arn> \
   --worker-secret <worker-secret-arn> \
   --migration-secret <migration-secret-arn> \

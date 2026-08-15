@@ -15,7 +15,7 @@ from ai_fde.modules.engagements.service import list_engagements
 from ai_fde.modules.evidence.parser import EvidenceParseError, UnsupportedEvidenceTypeError
 from ai_fde.modules.identity.admin import validate_worker_identity
 from ai_fde.modules.knowledge.extractor import (
-    DeterministicAcmeExtractor,
+    DeterministicFixtureExtractor,
     ExtractionProvider,
     ExtractionProviderError,
 )
@@ -74,7 +74,7 @@ class Worker:
         self.settings = get_settings()
         self.store = S3EvidenceStore(self.settings)
         self.operator_id = self.settings.operator_id
-        self.extractor: ExtractionProvider = DeterministicAcmeExtractor()
+        self.extractor: ExtractionProvider = DeterministicFixtureExtractor()
         if self.settings.extraction_provider == "bedrock":
             self.extractor = BedrockExtractionProvider(self.settings)
         if self.settings.env != "development":

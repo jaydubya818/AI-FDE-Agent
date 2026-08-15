@@ -1,4 +1,4 @@
-.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness terraform-check rehearse demo-rehearsal
+.PHONY: setup infrastructure migrate dev seed test lint format acceptance accessibility auth0-contract auth0-readiness terraform-check rehearse demo-rehearsal alpha-rehearsal
 
 setup:
 	uv sync
@@ -49,4 +49,10 @@ rehearse:
 	./scripts/rehearse-clean-environment.sh
 
 demo-rehearsal:
+	./scripts/rehearse-sample-demo.sh
+
+alpha-rehearsal:
+	AI_FDE_DEMO_TEST_SCRIPT=test:e2e:alpha \
+	AI_FDE_DEMO_EVIDENCE_NAME=internal-alpha \
+	AI_FDE_ALPHA_SCREENSHOT="$(CURDIR)/output/playwright/internal-alpha/internal-alpha-scorecard.png" \
 	./scripts/rehearse-sample-demo.sh

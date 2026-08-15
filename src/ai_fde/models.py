@@ -134,6 +134,65 @@ class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
 
+class EngagementAssessment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "engagement_assessments"
+    __table_args__ = (
+        UniqueConstraint(
+            "engagement_id",
+            "evaluator_id",
+            "delivery_method",
+            "perspective",
+            name="assessment_identity",
+        ),
+        CheckConstraint(
+            "delivery_method IN ('ai_fde', 'conventional')",
+            name="valid_delivery_method",
+        ),
+        CheckConstraint(
+            "perspective IN ('operator', 'engineering')",
+            name="valid_perspective",
+        ),
+        CheckConstraint(
+            "outcome IN ('completed', 'blocked', 'abandoned')",
+            name="valid_outcome",
+        ),
+        CheckConstraint(
+            "duration_minutes BETWEEN 1 AND 10080",
+            name="valid_duration_minutes",
+        ),
+        CheckConstraint("usefulness_score BETWEEN 1 AND 5", name="valid_usefulness_score"),
+        CheckConstraint(
+            "clarification_count BETWEEN 0 AND 10000 AND "
+            "rework_count BETWEEN 0 AND 10000 AND "
+            "workaround_count BETWEEN 0 AND 10000 AND "
+            "trust_failure_count BETWEEN 0 AND 10000",
+            name="valid_assessment_counts",
+        ),
+        Index(
+            "ix_engagement_assessments_engagement_updated",
+            "engagement_id",
+            "updated_at",
+        ),
+    )
+
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False
+    )
+    evaluator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operators.id", ondelete="RESTRICT"), nullable=False
+    )
+    delivery_method: Mapped[str] = mapped_column(String(24), nullable=False)
+    perspective: Mapped[str] = mapped_column(String(24), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    usefulness_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    clarification_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rework_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    workaround_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    trust_failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
 class EngagementExport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "engagement_exports"
     __table_args__ = (

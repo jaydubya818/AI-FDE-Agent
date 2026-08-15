@@ -13,6 +13,7 @@ import Link from "next/link";
 import { AuthenticationRequired } from "@/components/authentication-required";
 import { Brand } from "@/components/brand";
 import { DataLifecycleWorkspace } from "@/components/data-lifecycle-workspace";
+import { DeliveryEvaluationWorkspace } from "@/components/delivery-evaluation-workspace";
 import {
   CheckIcon,
   FileIcon,
@@ -98,8 +99,14 @@ const stages = [
     detail: "Engineering handoff",
   },
   {
-    id: "data-lifecycle",
+    id: "evaluation",
     number: "08",
+    label: "Delivery proof",
+    detail: "Outcomes & efficiency",
+  },
+  {
+    id: "data-lifecycle",
+    number: "09",
     label: "Data lifecycle",
     detail: "Export & deletion",
   },
@@ -169,6 +176,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [dataLifecycleReady, setDataLifecycleReady] = useState(false);
+  const [assessmentReady, setAssessmentReady] = useState(false);
   const [deletedReceipt, setDeletedReceipt] =
     useState<EngagementDeletionReceipt | null>(null);
   const [lifecycleProgress, setLifecycleProgress] = useState({
@@ -186,6 +194,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   );
   const handleDataLifecycleReady = useCallback(
     (ready: boolean) => setDataLifecycleReady(ready),
+    [],
+  );
+  const handleAssessmentReady = useCallback(
+    (ready: boolean) => setAssessmentReady(ready),
     [],
   );
 
@@ -463,7 +475,9 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                           ? lifecycleProgress.economics
                           : stage.id === "specification"
                             ? lifecycleProgress.specification
-                            : dataLifecycleReady;
+                            : stage.id === "evaluation"
+                              ? assessmentReady
+                              : dataLifecycleReady;
             return (
               <a
                 aria-label={`${stage.number}. ${stage.label}: ${stage.detail}, ${complete ? "complete" : "incomplete"}`}
@@ -547,9 +561,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
           <div className="mt-8 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] px-4 py-3 text-xs font-semibold leading-5 text-[var(--amber)]">
             <strong className="font-extrabold">V1 capability boundary:</strong>{" "}
             PDF, DOCX, CSV, email, image, Markdown, and text evidence are
-            supported. Local development uses the deterministic Acme fixture;
-            production requires fail-closed Bedrock extraction. Coding-agent
-            execution and autonomous remediation are not included.
+            supported. Local development uses transparent deterministic fixture
+            patterns across three synthetic workflows; production requires
+            fail-closed Bedrock extraction. Coding-agent execution and
+            autonomous remediation are not included.
           </div>
 
           {notice && (
@@ -865,6 +880,12 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             engagementId={engagementId}
             modelVersion={`${counts.verified_assertions}:${data.contradictions.map((item) => `${item.id}:${item.status}`).join("|")}`}
             onProgress={handleLifecycleProgress}
+          />
+
+          <DeliveryEvaluationWorkspace
+            engagementId={engagementId}
+            lifecycleVersion={JSON.stringify(lifecycleProgress)}
+            onReady={handleAssessmentReady}
           />
 
           <DataLifecycleWorkspace

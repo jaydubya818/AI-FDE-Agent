@@ -7,7 +7,13 @@ from sqlalchemy import select, text
 
 from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import SessionFactory, apply_operator_context, operator_session
-from ai_fde.models import Engagement, EvidenceAsset, Operator, WorkflowVersion
+from ai_fde.models import (
+    Engagement,
+    EngagementAssessment,
+    EvidenceAsset,
+    Operator,
+    WorkflowVersion,
+)
 from ai_fde.modules.engagements.service import create_engagement
 from ai_fde.modules.evidence.service import create_evidence_asset
 from tests.conftest import OperatorFixture
@@ -71,15 +77,32 @@ def test_runtime_role_cannot_bypass_row_level_security(
             created_by_id=operator.id,
         )
         session.add(workflow)
+        assessment = EngagementAssessment(
+            engagement_id=engagement.id,
+            evaluator_id=operator.id,
+            delivery_method="conventional",
+            perspective="operator",
+            outcome="blocked",
+            duration_minutes=30,
+            usefulness_score=2,
+            clarification_count=3,
+            rework_count=1,
+            workaround_count=0,
+            trust_failure_count=1,
+        )
+        session.add(assessment)
         session.flush()
         workflow_id = workflow.id
+        assessment_id = assessment.id
 
     with operator_session(operator_b.id) as session:
         assert session.get(Engagement, engagement_id) is None
         assert session.get(EvidenceAsset, evidence_id) is None
         assert session.get(WorkflowVersion, workflow_id) is None
+        assert session.get(EngagementAssessment, assessment_id) is None
         assert list(session.scalars(select(EvidenceAsset))) == []
         assert list(session.scalars(select(WorkflowVersion))) == []
+        assert list(session.scalars(select(EngagementAssessment))) == []
 
         runtime_role = session.execute(
             text("SELECT current_user, rolbypassrls FROM pg_roles WHERE rolname = current_user")

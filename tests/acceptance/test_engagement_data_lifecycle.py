@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import operator_session
-from ai_fde.models import Engagement, EngagementDeletionReceipt, Operator
+from ai_fde.models import Engagement, EngagementAssessment, EngagementDeletionReceipt, Operator
 from ai_fde.modules.data_lifecycle.service import (
     DataLifecycleError,
     DeletionExecutionError,
@@ -80,6 +80,23 @@ def test_owner_exports_then_permanently_deletes_engagement(
     )
 
     with operator_session(test_operator.id) as session:
+        assessment = EngagementAssessment(
+            engagement_id=engagement_id,
+            evaluator_id=test_operator.id,
+            delivery_method="conventional",
+            perspective="operator",
+            outcome="blocked",
+            duration_minutes=30,
+            usefulness_score=2,
+            clarification_count=3,
+            rework_count=1,
+            workaround_count=0,
+            trust_failure_count=1,
+            notes="Exported with the governed engagement, not with telemetry.",
+        )
+        session.add(assessment)
+        session.flush()
+        assessment_id = assessment.id
         generated = create_engagement_export(
             session,
             store,
@@ -99,6 +116,8 @@ def test_owner_exports_then_permanently_deletes_engagement(
             assert manifest["export_id"] == str(export_id)
             assert manifest["source_fingerprint"] == generated.record.source_fingerprint
             assert yaml_records["engagement"]["id"] == str(engagement_id)
+            assert len(yaml_records["records"]["engagement_assessments"]) == 1
+            assert yaml_records["records"]["engagement_assessments"][0]["outcome"] == "blocked"
 
     receipt = delete_engagement_permanently(
         store,
@@ -116,6 +135,7 @@ def test_owner_exports_then_permanently_deletes_engagement(
     assert store.objects == {}
     with operator_session(test_operator.id) as session:
         assert session.get(Engagement, engagement_id) is None
+        assert session.get(EngagementAssessment, assessment_id) is None
         persisted_receipt = session.get_one(EngagementDeletionReceipt, receipt.id)
         assert persisted_receipt.completed_at is not None
 
@@ -163,8 +183,21 @@ def test_deletion_requires_current_export_and_expired_retention(
         )
 
     with operator_session(test_operator.id) as session:
-        engagement = session.get_one(Engagement, engagement_id)
-        engagement.primary_outcome = "A material change after the portability export."
+        session.add(
+            EngagementAssessment(
+                engagement_id=engagement_id,
+                evaluator_id=test_operator.id,
+                delivery_method="conventional",
+                perspective="operator",
+                outcome="blocked",
+                duration_minutes=45,
+                usefulness_score=2,
+                clarification_count=2,
+                rework_count=1,
+                workaround_count=1,
+                trust_failure_count=0,
+            )
+        )
 
     with pytest.raises(DataLifecycleError, match="export is stale"):
         delete_engagement_permanently(

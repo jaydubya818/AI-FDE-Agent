@@ -4,11 +4,11 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import operator_session
-from ai_fde.models import CandidateClaim, Contradiction, Operator
+from ai_fde.models import AuditEvent, CandidateClaim, Contradiction, EngagementAssessment, Operator
 from ai_fde.modules.artifacts.service import (
     ARTIFACT_TYPES,
     generate_implementation_packet,
@@ -18,6 +18,11 @@ from ai_fde.modules.artifacts.service import (
 from ai_fde.modules.economics.service import (
     approve_economic_case,
     calculate_economic_case,
+)
+from ai_fde.modules.engagements.evaluation import (
+    AssessmentStageGateError,
+    engagement_delivery_scorecard,
+    record_assessment,
 )
 from ai_fde.modules.engagements.service import create_engagement
 from ai_fde.modules.evidence.service import create_evidence_asset
@@ -69,6 +74,22 @@ def test_verified_model_to_implementation_specification_lifecycle(
 
     with operator_session(test_operator.id) as session:
         operator = session.get_one(Operator, test_operator.id)
+        with pytest.raises(AssessmentStageGateError, match="seven-artifact"):
+            record_assessment(
+                session,
+                engagement_id=engagement_id,
+                evaluator=operator,
+                delivery_method="ai_fde",
+                perspective="operator",
+                outcome="completed",
+                duration_minutes=90,
+                usefulness_score=5,
+                clarification_count=1,
+                rework_count=0,
+                workaround_count=0,
+                trust_failure_count=0,
+                notes="This must not be persisted before the stage gate is satisfied.",
+            )
         actionable_claims = list(
             session.scalars(
                 select(CandidateClaim).where(
@@ -179,6 +200,62 @@ def test_verified_model_to_implementation_specification_lifecycle(
         assert "## Runtime boundaries" in next(
             item.content for item in packet if item.artifact_type == "architecture"
         )
+
+        assessment = record_assessment(
+            session,
+            engagement_id=engagement_id,
+            evaluator=operator,
+            delivery_method="ai_fde",
+            perspective="operator",
+            outcome="completed",
+            duration_minutes=90,
+            usefulness_score=5,
+            clarification_count=1,
+            rework_count=0,
+            workaround_count=0,
+            trust_failure_count=0,
+            notes="Evaluator note that must never be copied into the audit event.",
+        )
+        updated = record_assessment(
+            session,
+            engagement_id=engagement_id,
+            evaluator=operator,
+            delivery_method="ai_fde",
+            perspective="operator",
+            outcome="completed",
+            duration_minutes=82,
+            usefulness_score=5,
+            clarification_count=0,
+            rework_count=0,
+            workaround_count=0,
+            trust_failure_count=0,
+            notes="Updated evaluator note.",
+        )
+        assert updated.id == assessment.id
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(EngagementAssessment)
+                .where(EngagementAssessment.engagement_id == engagement_id)
+            )
+            == 1
+        )
+        audit = session.scalar(
+            select(AuditEvent)
+            .where(
+                AuditEvent.engagement_id == engagement_id,
+                AuditEvent.action == "engagement.assessment_recorded",
+            )
+            .order_by(AuditEvent.created_at.desc())
+        )
+        assert audit is not None
+        assert audit.detail["notes_present"] is True
+        assert "notes" not in audit.detail
+        scorecard = engagement_delivery_scorecard(session, engagement_id)
+        assert scorecard["packet"]["complete"] is True
+        assert scorecard["claims"]["material_accepted"] == 4
+        assert scorecard["provider"]["run_count"] == 2
+        assert scorecard["assessments"][0]["duration_minutes"] == 82
 
         remaining_entity_claim = session.scalar(
             select(CandidateClaim).where(

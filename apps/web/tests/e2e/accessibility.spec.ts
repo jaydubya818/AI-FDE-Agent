@@ -21,6 +21,7 @@ async function openAcmeEngagement(page: Page) {
   await openEngagementList(page);
   const href = await page
     .getByRole("link", { name: /Acme Manufacturing/ })
+    .last()
     .getAttribute("href");
   expect(href).toBeTruthy();
   await page.goto(href!);

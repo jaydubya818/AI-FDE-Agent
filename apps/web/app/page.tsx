@@ -11,11 +11,12 @@ import {
   ApiError,
   createEngagement,
   getAuthenticatedOperator,
+  getInternalAlphaScorecard,
   listEngagements,
   logoutOperator,
 } from "@/lib/api";
 import type { AuthenticatedOperator } from "@/lib/api";
-import type { Engagement } from "@/lib/types";
+import type { Engagement, InternalAlphaScorecard } from "@/lib/types";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -33,6 +34,8 @@ export default function EngagementsPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [operator, setOperator] = useState<AuthenticatedOperator | null>(null);
+  const [alphaScorecard, setAlphaScorecard] =
+    useState<InternalAlphaScorecard | null>(null);
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const createButton = useRef<HTMLButtonElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
@@ -41,7 +44,12 @@ export default function EngagementsPage() {
     getAuthenticatedOperator()
       .then(async (authenticatedOperator) => {
         setOperator(authenticatedOperator);
-        setEngagements(await listEngagements());
+        const [currentEngagements, currentScorecard] = await Promise.all([
+          listEngagements(),
+          getInternalAlphaScorecard(),
+        ]);
+        setEngagements(currentEngagements);
+        setAlphaScorecard(currentScorecard);
       })
       .catch((reason: unknown) => {
         if (reason instanceof ApiError && reason.status === 401) {
@@ -162,6 +170,118 @@ export default function EngagementsPage() {
             </button>
           </div>
         </div>
+      </section>
+
+      <section
+        aria-labelledby="alpha-scorecard-heading"
+        className="surface mx-auto mb-12 max-w-[1240px] overflow-hidden rounded-2xl"
+      >
+        <div className="grid gap-6 border-b border-[var(--line)] bg-[var(--ink)] px-6 py-7 text-white md:px-8 lg:grid-cols-[1fr_0.9fr] lg:items-end">
+          <div>
+            <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.15em] text-[#9dc8c2]">
+              Internal alpha evidence
+            </p>
+            <h2
+              className="display-font mt-3 text-3xl font-medium md:text-4xl"
+              id="alpha-scorecard-heading"
+            >
+              Delivery proof before production claims.
+            </h2>
+          </div>
+          <p className="text-sm leading-6 text-white/65">
+            Three distinct workflow shapes, objective stage gates, and
+            structured evaluator observations. Time and token economics remain
+            absolute until a complete conventional baseline exists.
+          </p>
+        </div>
+
+        {loading || !alphaScorecard ? (
+          <div
+            aria-live="polite"
+            className="p-8 text-sm font-bold text-[var(--ink-soft)]"
+            role="status"
+          >
+            Loading internal alpha scorecard…
+          </div>
+        ) : (
+          <div className="p-6 md:p-8">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <AlphaMetric
+                label="Workflow profiles"
+                value={alphaScorecard.profile_count}
+              />
+              <AlphaMetric
+                label="Complete packets"
+                value={
+                  String(alphaScorecard.packet_complete_count) +
+                  "/" +
+                  String(alphaScorecard.profile_count)
+                }
+              />
+              <AlphaMetric
+                label="Accepted material claims"
+                value={alphaScorecard.accepted_material_claim_count}
+              />
+              <AlphaMetric
+                label="Measured provider tokens"
+                value={alphaScorecard.total_provider_tokens.toLocaleString()}
+              />
+            </div>
+
+            <div className="mt-6 grid gap-3 lg:grid-cols-3">
+              {alphaScorecard.engagements.map((card) => (
+                <Link
+                  className="rounded-xl border border-[var(--line)] bg-white p-4 text-[var(--ink)] no-underline transition hover:-translate-y-0.5 hover:border-[var(--line-strong)]"
+                  href={"/engagements/" + card.engagement.id + "#evaluation"}
+                  key={card.engagement.id}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="status-dot text-[var(--teal)]" />
+                    <span className="text-[0.6rem] font-extrabold uppercase tracking-[0.09em] text-[var(--ink-soft)]">
+                      {card.packet.artifact_count}/7 artifacts
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm font-extrabold">
+                    {card.engagement.workflow_name}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-[var(--ink-soft)]">
+                    {card.engagement.name} · {card.claims.material_accepted}{" "}
+                    material claims
+                  </p>
+                </Link>
+              ))}
+            </div>
+
+            <div
+              className={
+                "mt-6 rounded-xl border px-4 py-4 text-sm font-bold " +
+                (alphaScorecard.comparison.ready
+                  ? "border-[var(--teal)]/25 bg-[var(--teal-soft)] text-[var(--teal)]"
+                  : "border-[var(--amber)]/25 bg-[var(--amber-soft)] text-[var(--amber)]")
+              }
+            >
+              <p>
+                {alphaScorecard.comparison.ready
+                  ? "Comparison cohort complete. Absolute method differences are available for internal review."
+                  : alphaScorecard.comparison.reason}
+              </p>
+              <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em]">
+                AI-FDE completed operator cohort:{" "}
+                {
+                  alphaScorecard.comparison.methods.ai_fde
+                    .completed_operator_assessment_count
+                }
+                /3
+                {" · "}Conventional baseline:{" "}
+                {
+                  alphaScorecard.comparison.methods.conventional
+                    .completed_operator_assessment_count
+                }
+                /3
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       {error && (
@@ -313,5 +433,22 @@ export default function EngagementsPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function AlphaMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-white p-4">
+      <p className="display-font text-3xl font-medium">{value}</p>
+      <p className="mt-1 text-[0.62rem] font-extrabold uppercase tracking-[0.09em] text-[var(--ink-soft)]">
+        {label}
+      </p>
+    </div>
   );
 }

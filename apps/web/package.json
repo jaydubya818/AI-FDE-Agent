@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
+    "test:e2e:alpha": "playwright test tests/e2e/internal-alpha.spec.ts",
     "test:e2e:golden": "playwright test tests/e2e/golden-path.spec.ts",
     "typecheck": "tsc --noEmit"
   },

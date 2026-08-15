@@ -185,7 +185,7 @@ export function LifecycleWorkspace({
         calculateEconomics(engagementId, {
           ...economicDraft,
           assumptions: [
-            "Synthetic Acme values for architecture validation; replace before customer use.",
+            "Synthetic values for architecture validation; replace before customer use.",
           ],
         }),
       "The deterministic economic case was recalculated from the labeled inputs.",

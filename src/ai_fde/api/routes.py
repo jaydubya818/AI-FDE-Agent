@@ -35,8 +35,11 @@ from ai_fde.api.schemas import (
     ClaimReviewResponse,
     ContradictionResolveRequest,
     ContradictionResponse,
+    DeliveryScorecardResponse,
     EconomicCalculateRequest,
     EconomicCaseResponse,
+    EngagementAssessmentCreate,
+    EngagementAssessmentResponse,
     EngagementCreate,
     EngagementDataLifecycleResponse,
     EngagementDeletionReceiptResponse,
@@ -48,6 +51,7 @@ from ai_fde.api.schemas import (
     EvidenceResponse,
     HealthResponse,
     ImplementationArtifactResponse,
+    InternalAlphaScorecardResponse,
     OperatingModelResponse,
     OperatorNoteCreate,
     ProvenanceResponse,
@@ -82,6 +86,13 @@ from ai_fde.modules.economics.service import (
     approve_economic_case,
     calculate_economic_case,
     get_latest_economic_case,
+)
+from ai_fde.modules.engagements.evaluation import (
+    AssessmentStageGateError,
+    engagement_delivery_scorecard,
+    internal_alpha_scorecard,
+    list_assessments,
+    record_assessment,
 )
 from ai_fde.modules.engagements.service import (
     EngagementNotFoundError,
@@ -315,6 +326,68 @@ def get_engagement_endpoint(
         engagement=EngagementResponse.model_validate(engagement),
         counts=get_engagement_counts(session, engagement_id),
     )
+
+
+@router.get("/internal-alpha/scorecard", response_model=InternalAlphaScorecardResponse)
+def get_internal_alpha_scorecard_endpoint(
+    session: SessionDependency,
+    _operator: OperatorDependency,
+) -> InternalAlphaScorecardResponse:
+    return InternalAlphaScorecardResponse.model_validate(internal_alpha_scorecard(session))
+
+
+@router.get(
+    "/engagements/{engagement_id}/delivery-scorecard",
+    response_model=DeliveryScorecardResponse,
+)
+def get_delivery_scorecard_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
+) -> DeliveryScorecardResponse:
+    try:
+        scorecard = engagement_delivery_scorecard(session, engagement_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Engagement not found.") from exc
+    return DeliveryScorecardResponse.model_validate(scorecard)
+
+
+@router.get(
+    "/engagements/{engagement_id}/assessments",
+    response_model=list[EngagementAssessmentResponse],
+)
+def list_assessments_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
+) -> list[EngagementAssessmentResponse]:
+    return [
+        EngagementAssessmentResponse.model_validate(item)
+        for item in list_assessments(session, engagement_id)
+    ]
+
+
+@router.post(
+    "/engagements/{engagement_id}/assessments",
+    response_model=EngagementAssessmentResponse,
+)
+def record_assessment_endpoint(
+    engagement_id: UUID,
+    payload: EngagementAssessmentCreate,
+    session: SessionDependency,
+    operator: OperatorDependency,
+    _access: EngagementWriteDependency,
+) -> EngagementAssessmentResponse:
+    try:
+        assessment = record_assessment(
+            session,
+            engagement_id=engagement_id,
+            evaluator=operator,
+            **payload.model_dump(),
+        )
+    except AssessmentStageGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return EngagementAssessmentResponse.model_validate(assessment)
 
 
 @router.get(

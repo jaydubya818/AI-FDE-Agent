@@ -67,9 +67,11 @@ test("synthetic Acme reaches an approved implementation packet", async ({
     }),
   ).toBeVisible();
 
-  const engagementLink = page.getByRole("link", {
-    name: /Acme Manufacturing Accounts Payable/,
-  });
+  const engagementLink = page
+    .getByRole("link", {
+      name: /Acme Manufacturing Accounts Payable/,
+    })
+    .last();
   await expect(engagementLink).toContainText("synthetic");
   await engagementLink.click();
 

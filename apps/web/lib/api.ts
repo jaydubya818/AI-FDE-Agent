@@ -1,7 +1,9 @@
 import type {
   Claim,
   Contradiction,
+  DeliveryScorecard,
   Engagement,
+  EngagementAssessment,
   EngagementDataLifecycle,
   EngagementDeletionReceipt,
   EngagementWorkspace,
@@ -9,6 +11,7 @@ import type {
   Evidence,
   EvidenceClassification,
   ImplementationArtifact,
+  InternalAlphaScorecard,
   OperatingModel,
   Workflow,
   WorkflowStep,
@@ -93,6 +96,30 @@ export function getWorkspace(
   engagementId: string,
 ): Promise<EngagementWorkspace> {
   return request(`/engagements/${engagementId}`);
+}
+
+export function getInternalAlphaScorecard(): Promise<InternalAlphaScorecard> {
+  return request("/internal-alpha/scorecard");
+}
+
+export function getDeliveryScorecard(
+  engagementId: string,
+): Promise<DeliveryScorecard> {
+  return request(`/engagements/${engagementId}/delivery-scorecard`);
+}
+
+export function recordEngagementAssessment(
+  engagementId: string,
+  payload: Omit<
+    EngagementAssessment,
+    "id" | "engagement_id" | "evaluator_id" | "created_at" | "updated_at"
+  >,
+): Promise<EngagementAssessment> {
+  return request(`/engagements/${engagementId}/assessments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getEngagementDataLifecycle(

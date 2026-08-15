@@ -38,7 +38,7 @@ explain the provenance, cost, controls, failure state, and rollback path.
 
 - One named primary workflow per engagement.
 - Markdown implementation artifacts.
-- Deterministic Acme extraction for local demonstration.
+- Transparent deterministic extraction for three synthetic workflow profiles.
 - No customer self-service, live source connectors, OCR, process mining, or multi-workflow ranking.
 - No automatic code generation, pull-request creation, remediation, or production changes.
 - No claim of realized ROI or token-cost reduction before baseline measurement.
@@ -134,6 +134,7 @@ or commitments.
 - Include a straight-through workflow, an exception-heavy workflow, and a system-handoff workflow.
 - Measure time by lifecycle stage, review correction rate, contradictions found, packet completeness,
   clarification requests, and model-run metadata.
+- Record structured operator and engineering assessments for AI-FDE and the conventional method.
 - Compare the generated packet with a conventional document/spreadsheet handoff for the same task.
 - Record usability failures, missing states, and where operators leave the product for another tool.
 - Review the packet with an engineer who did not participate in discovery.
@@ -145,6 +146,8 @@ or commitments.
 - The median operator can repeat the flow from the runbook.
 - Engineering accepts the packet structure and all critical clarification gaps have owners.
 - Baseline metrics exist; the team makes no unsupported percentage claim.
+- Comparison readiness has three completed operator assessments per method across three distinct
+  workflows; incomplete cohorts remain visible rather than extrapolated.
 
 **Decision owner:** FDE leader with technical owner concurrence.
 
