@@ -130,7 +130,9 @@ export default function EngagementsPage() {
             <span className="status-dot text-[var(--teal)]" />
             {operator
               ? `${operator.display_name} · ${operator.auth_mode === "oidc" ? "verified" : "development"}`
-              : "Checking operator session"}
+              : loading
+                ? "Checking operator session"
+                : "Operator service unavailable"}
           </div>
           {operator?.auth_mode === "oidc" && (
             <button
@@ -161,7 +163,8 @@ export default function EngagementsPage() {
             <button
               aria-controls="new-engagement-form"
               aria-expanded={showForm}
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+              disabled={!operator}
               onClick={() => setShowForm(true)}
               ref={createButton}
               type="button"
@@ -195,13 +198,22 @@ export default function EngagementsPage() {
           </p>
         </div>
 
-        {loading || !alphaScorecard ? (
+        {loading ? (
           <div
             aria-live="polite"
             className="p-8 text-sm font-bold text-[var(--ink-soft)]"
             role="status"
           >
             Loading internal alpha scorecard…
+          </div>
+        ) : !alphaScorecard ? (
+          <div
+            aria-live="polite"
+            className="p-8 text-sm font-bold text-[var(--ink-soft)]"
+            role="status"
+          >
+            Internal alpha scorecard unavailable until the operator service
+            connects.
           </div>
         ) : (
           <div className="p-6 md:p-8">

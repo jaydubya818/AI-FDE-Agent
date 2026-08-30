@@ -100,6 +100,19 @@ The synthetic evidence-to-specification path is implemented across multiple work
 
 The repository does not claim production readiness or realized customer ROI. Current economics are scenario-based and reproducible from versioned inputs.
 
+## Vercel frontend preview
+
+The existing `apps/web` Next.js Operator Cockpit can be deployed to Vercel as a protected preview. It is not a second frontend and does not replace the FastAPI API, persistent worker, PostgreSQL, object storage, or Bedrock runtime.
+
+Configure the Vercel project root as `apps/web`, then deploy from the repository root:
+
+```bash
+vercel link --yes --project ai-fde-agent
+vercel deploy . --build-env NEXT_PUBLIC_AI_FDE_API_URL=https://<staging-api>/api -y
+```
+
+The API must be a reachable HTTPS endpoint that allows the exact preview origin. A frontend-only deployment proves only that the web artifact builds and renders; it is not end-to-end or production-readiness evidence.
+
 ## Technical themes
 
 - stateful agent workflows

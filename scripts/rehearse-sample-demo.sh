@@ -10,6 +10,7 @@ demo_web_port="${AI_FDE_DEMO_WEB_PORT:-3101}"
 demo_test_script="${AI_FDE_DEMO_TEST_SCRIPT:-test:e2e:golden}"
 demo_evidence_name="${AI_FDE_DEMO_EVIDENCE_NAME:-demo}"
 demo_log_directory="$(mktemp -d "${TMPDIR:-/tmp}/ai-fde-demo.XXXXXX")"
+demo_standalone_directory="apps/web/.next/standalone/apps/web"
 demo_api_pid=""
 demo_worker_pid=""
 demo_web_pid=""
@@ -132,6 +133,17 @@ PYTHONPATH=src uv run python -m ai_fde.seed
 
 pnpm --dir apps/web build >"${demo_log_directory}/build.log" 2>&1
 
+if [[ ! -f "${demo_standalone_directory}/server.js" ]]; then
+  echo "Next.js standalone server was not generated at ${demo_standalone_directory}/server.js."
+  exit 1
+fi
+
+mkdir -p "${demo_standalone_directory}/.next"
+cp -R apps/web/.next/static "${demo_standalone_directory}/.next/"
+if [[ -d apps/web/public ]]; then
+  cp -R apps/web/public "${demo_standalone_directory}/"
+fi
+
 PYTHONPATH=src uv run uvicorn apps.api.main:app \
   --host 127.0.0.1 \
   --port "${demo_api_port}" \
@@ -142,7 +154,7 @@ AI_FDE_RUNTIME_ROLE=worker PYTHONPATH=src uv run python -m ai_fde.worker \
   >"${demo_log_directory}/worker.log" 2>&1 &
 demo_worker_pid=$!
 
-pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port "${demo_web_port}" \
+HOSTNAME=127.0.0.1 PORT="${demo_web_port}" node "${demo_standalone_directory}/server.js" \
   >"${demo_log_directory}/web.log" 2>&1 &
 demo_web_pid=$!
 
