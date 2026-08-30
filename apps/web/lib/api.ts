@@ -38,11 +38,16 @@ export type AuthenticatedOperator = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    cache: "no-store",
-    ...init,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      cache: "no-store",
+      ...init,
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError("The operator service is unavailable.", 0);
+  }
 
   if (!response.ok) throw await responseError(response);
 

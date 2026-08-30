@@ -62,8 +62,11 @@ def get_session(
         yield session
 
 
+SessionDependency = Annotated[Session, Depends(get_session, scope="function")]
+
+
 def get_operator(
-    session: Annotated[Session, Depends(get_session)],
+    session: SessionDependency,
     principal: Annotated[AuthenticatedPrincipal, Depends(get_principal)],
 ) -> Operator:
     operator = session.get(Operator, principal.operator_id)
@@ -74,7 +77,7 @@ def get_operator(
 
 def require_engagement_read(
     engagement_id: UUID,
-    session: Annotated[Session, Depends(get_session)],
+    session: SessionDependency,
     principal: Annotated[AuthenticatedPrincipal, Depends(get_principal)],
 ) -> EngagementMember:
     return _authorize_engagement(session, engagement_id, principal, "read")
@@ -82,7 +85,7 @@ def require_engagement_read(
 
 def require_engagement_write(
     engagement_id: UUID,
-    session: Annotated[Session, Depends(get_session)],
+    session: SessionDependency,
     principal: Annotated[AuthenticatedPrincipal, Depends(get_principal)],
 ) -> EngagementMember:
     return _authorize_engagement(session, engagement_id, principal, "write")
@@ -90,7 +93,7 @@ def require_engagement_write(
 
 def require_engagement_owner(
     engagement_id: UUID,
-    session: Annotated[Session, Depends(get_session)],
+    session: SessionDependency,
     principal: Annotated[AuthenticatedPrincipal, Depends(get_principal)],
 ) -> EngagementMember:
     return _authorize_engagement(session, engagement_id, principal, "owner")
@@ -121,7 +124,6 @@ def get_evidence_store(request: Request) -> EvidenceStore:
     return store
 
 
-SessionDependency = Annotated[Session, Depends(get_session)]
 OperatorDependency = Annotated[Operator, Depends(get_operator)]
 PrincipalDependency = Annotated[AuthenticatedPrincipal, Depends(get_principal)]
 EngagementReadDependency = Annotated[EngagementMember, Depends(require_engagement_read)]
