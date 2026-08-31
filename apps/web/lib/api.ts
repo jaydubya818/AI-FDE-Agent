@@ -17,6 +17,13 @@ import type {
   WorkflowStep,
   WorkflowWorkspace,
 } from "./types";
+import {
+  hostedDemoEnabled,
+  hostedDemoExport,
+  hostedDemoRequest,
+} from "./hosted-demo";
+
+export { hostedDemoEnabled } from "./hosted-demo";
 
 const API_URL =
   process.env.NEXT_PUBLIC_AI_FDE_API_URL ?? "http://localhost:8000/api";
@@ -38,6 +45,8 @@ export type AuthenticatedOperator = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (hostedDemoEnabled) return hostedDemoRequest<T>(path, init);
+
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -147,6 +156,8 @@ export function updateEngagementRetention(
 export async function downloadEngagementExport(
   engagementId: string,
 ): Promise<{ blob: Blob; exportId: string; filename: string }> {
+  if (hostedDemoEnabled) return hostedDemoExport(engagementId);
+
   const response = await fetch(
     `${API_URL}/engagements/${engagementId}/data-lifecycle/exports`,
     {
