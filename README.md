@@ -100,18 +100,47 @@ The synthetic evidence-to-specification path is implemented across multiple work
 
 The repository does not claim production readiness or realized customer ROI. Current economics are scenario-based and reproducible from versioned inputs.
 
-## Vercel frontend preview
+## Live hosted demonstration
 
-The existing `apps/web` Next.js Operator Cockpit can be deployed to Vercel as a protected preview. It is not a second frontend and does not replace the FastAPI API, persistent worker, PostgreSQL, object storage, or Bedrock runtime.
+[Open the public AI-FDE demonstration](https://ai-fde-agent.vercel.app).
 
-Configure the Vercel project root as `apps/web`, then deploy from the repository root:
+The Vercel production build runs an explicitly labeled, deterministic, synthetic demonstration of the complete operator workflow. It lets an evaluator review claims, resolve contradictions, approve current and target workflows, calculate low/base/high economics, generate seven version-pinned artifacts, and record a delivery assessment.
+
+Demo state is stored in the evaluator's browser. It can be reset by clearing site data. The hosted demo makes no model call, accepts no customer data, and does not claim live PostgreSQL isolation, Auth0 validation, a persistent worker, AWS object storage, Bedrock extraction, or production readiness. Those capabilities remain on the real FastAPI deployment path and fail closed until their external gates are satisfied.
+
+The public build is deployed from the repository root with the Vercel project root configured as `apps/web`:
 
 ```bash
 vercel link --yes --project ai-fde-agent
-vercel deploy . --build-env NEXT_PUBLIC_AI_FDE_API_URL=https://<staging-api>/api -y
+vercel deploy . --prod \
+  --build-env NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=true \
+  --build-env NEXT_PUBLIC_AI_FDE_API_URL=https://api.ai-fde.invalid/api \
+  -y
 ```
 
-The API must be a reachable HTTPS endpoint that allows the exact preview origin. A frontend-only deployment proves only that the web artifact builds and renders; it is not end-to-end or production-readiness evidence.
+The invalid API URL is intentional in hosted-demo mode: browser requests are handled by the synthetic adapter and cannot silently fall through to an unvalidated service.
+
+Run the deployed golden path and accessibility checks directly against the public URL:
+
+```bash
+AI_FDE_PLAYWRIGHT_BASE_URL=https://ai-fde-agent.vercel.app \
+AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER=true \
+pnpm --dir apps/web run test:e2e:golden
+
+AI_FDE_PLAYWRIGHT_BASE_URL=https://ai-fde-agent.vercel.app \
+AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER=true \
+pnpm --dir apps/web run test:e2e:alpha
+
+AI_FDE_PLAYWRIGHT_BASE_URL=https://ai-fde-agent.vercel.app \
+AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER=true \
+pnpm --dir apps/web run test:a11y
+```
+
+Production browser evidence:
+
+![Three completed synthetic workflow profiles](output/playwright/production/production-internal-alpha-scorecard.png)
+
+![Version-pinned implementation artifact packet](output/playwright/production/production-demo-complete.png)
 
 ## Technical themes
 
