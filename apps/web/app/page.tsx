@@ -12,6 +12,7 @@ import {
   createEngagement,
   getAuthenticatedOperator,
   getInternalAlphaScorecard,
+  hostedDemoEnabled,
   listEngagements,
   logoutOperator,
 } from "@/lib/api";
@@ -129,7 +130,7 @@ export default function EngagementsPage() {
           <div className="flex items-center gap-3 rounded-full border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-xs font-bold text-[var(--ink-soft)]">
             <span className="status-dot text-[var(--teal)]" />
             {operator
-              ? `${operator.display_name} · ${operator.auth_mode === "oidc" ? "verified" : "development"}`
+              ? `${operator.display_name} · ${hostedDemoEnabled ? "synthetic browser demo" : operator.auth_mode === "oidc" ? "verified" : "development"}`
               : loading
                 ? "Checking operator session"
                 : "Operator service unavailable"}
@@ -159,6 +160,12 @@ export default function EngagementsPage() {
             evidence, verify claims, and build an implementation-ready view of
             how a company actually operates.
           </p>
+          {hostedDemoEnabled && (
+            <p className="mt-4 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] px-4 py-3 text-xs font-bold leading-5 text-[var(--amber)]">
+              Hosted synthetic demo: state is stored only in this browser. No
+              customer data, live identity, cloud worker, or model call is used.
+            </p>
+          )}
           <div className="mt-7 flex gap-3">
             <button
               aria-controls="new-engagement-form"

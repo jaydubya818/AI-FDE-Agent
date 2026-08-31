@@ -26,3 +26,4 @@ runtime/
 .terraform/
 *.tfstate
 *.tfstate.*
+.vercel
