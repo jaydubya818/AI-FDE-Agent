@@ -27,6 +27,7 @@ import {
   getAuthenticatedOperator,
   getOperatingModel,
   getWorkspace,
+  hostedDemoEnabled,
   listClaims,
   listContradictions,
   listEvidence,
@@ -509,10 +510,14 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             active
           </p>
           <p className="mt-2 text-[0.66rem] leading-5 text-[var(--ink-soft)]">
-            Application authorization plus PostgreSQL row policies.{" "}
-            {operator.auth_mode === "oidc"
+            {hostedDemoEnabled
+              ? "Browser-local synthetic state. Customer data and production authority are disabled."
+              : "Application authorization plus PostgreSQL row policies. "}
+            {!hostedDemoEnabled && operator.auth_mode === "oidc"
               ? "Verified production identity."
-              : "Local development identity."}
+              : !hostedDemoEnabled
+                ? "Local development identity."
+                : null}
           </p>
         </div>
       </aside>
