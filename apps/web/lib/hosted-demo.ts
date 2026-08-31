@@ -551,7 +551,7 @@ function scorecard(item: DemoEngagement): DeliveryScorecard {
     (claim) => claim.status === "deferred",
   ).length;
   const resolved = item.contradictions.filter(
-    (contradiction) => contradiction.status === "resolved",
+    (contradiction) => !contradiction.blocking,
   ).length;
   const packetComplete = item.artifacts.length === 7;
   return {
@@ -804,7 +804,11 @@ export async function hostedDemoRequest<T>(
       (candidate) => candidate.id === contradictionMatch[1],
     );
     if (!contradiction) throw new Error("The contradiction was not found.");
-    contradiction.status = "resolved";
+    contradiction.status =
+      payload.resolution_type === "accepted_exception" ||
+      payload.resolution_type === "not_a_conflict"
+        ? payload.resolution_type
+        : "resolved";
     contradiction.blocking = false;
     contradiction.resolution_type = payload.resolution_type;
     contradiction.resolution_reason = payload.reason;
