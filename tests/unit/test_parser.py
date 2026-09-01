@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import io
+import zipfile
 
 import pytest
 from docx import Document
 from PIL import Image
+from pypdf import PdfWriter
 
 from ai_fde.modules.evidence.parser import (
+    MAX_ARCHIVE_EXPANDED_BYTES,
+    MAX_ARCHIVE_FILES,
+    MAX_CSV_COLUMNS,
+    MAX_DOCUMENT_CHARACTERS,
+    MAX_IMAGE_PIXELS,
+    MAX_PDF_PAGES,
     EvidenceParseError,
     UnsupportedEvidenceTypeError,
     parse_evidence,
     parse_text_evidence,
+    validate_evidence_upload_metadata,
 )
 
 
@@ -113,3 +122,130 @@ def test_parser_rejects_type_mismatch_malformed_content_and_non_utf8_text() -> N
 
     with pytest.raises(UnsupportedEvidenceTypeError, match="Supported evidence types"):
         parse_evidence(b"payload", "application/zip", "archive.zip")
+
+
+def test_upload_metadata_validation_normalizes_extension_and_content_type() -> None:
+    assert validate_evidence_upload_metadata("text/markdown; charset=utf-8", "Policy.MD") == "md"
+    assert validate_evidence_upload_metadata("APPLICATION/PDF", "report.PDF") == "pdf"
+
+    with pytest.raises(UnsupportedEvidenceTypeError, match="Supported evidence types"):
+        validate_evidence_upload_metadata("text/plain", "notes")
+
+    with pytest.raises(UnsupportedEvidenceTypeError, match="does not match"):
+        validate_evidence_upload_metadata("image/png", "policy.txt")
+
+
+def test_parser_rejects_evidence_with_no_readable_content() -> None:
+    with pytest.raises(EvidenceParseError, match="did not contain any readable content"):
+        parse_evidence(b"   \n\n  \n", "text/plain", "empty.txt")
+
+
+def test_parser_rejects_text_exceeding_the_document_character_limit() -> None:
+    oversized = b"x" * (MAX_DOCUMENT_CHARACTERS + 1)
+
+    with pytest.raises(EvidenceParseError, match="exceeds the safe text limit"):
+        parse_evidence(oversized, "text/plain", "huge.txt")
+
+
+def test_csv_parser_rejects_too_many_columns() -> None:
+    row = ",".join(["cell"] * (MAX_CSV_COLUMNS + 1)).encode()
+
+    with pytest.raises(EvidenceParseError, match="exceeds the safe column limit"):
+        parse_evidence(row, "text/csv", "wide.csv")
+
+
+def test_csv_parser_rejects_malformed_quoting() -> None:
+    with pytest.raises(EvidenceParseError, match="CSV evidence is malformed"):
+        parse_evidence(b'Process,Owner\n"unterminated,CFO\x00\n', "text/csv", "broken.csv")
+
+
+def test_csv_parser_skips_structurally_empty_rows() -> None:
+    segments = parse_evidence(
+        b"Process,Owner\n,\nInvoice approval,CFO\n", "text/csv", "process.csv"
+    )
+
+    assert [segment.locator["row"] for segment in segments] == [1, 3]
+
+
+def test_pdf_parser_rejects_encrypted_documents() -> None:
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.encrypt("evidence-password")
+    buffer = io.BytesIO()
+    writer.write(buffer)
+
+    with pytest.raises(EvidenceParseError, match="Encrypted PDF evidence is not supported"):
+        parse_evidence(buffer.getvalue(), "application/pdf", "secret.pdf")
+
+
+def test_pdf_parser_rejects_documents_over_the_page_limit() -> None:
+    writer = PdfWriter()
+    for _ in range(MAX_PDF_PAGES + 1):
+        writer.add_blank_page(width=72, height=72)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+
+    with pytest.raises(EvidenceParseError, match="exceeds the safe page limit"):
+        parse_evidence(buffer.getvalue(), "application/pdf", "long.pdf")
+
+
+def _zip_bytes(entries: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, payload in entries.items():
+            archive.writestr(name, payload)
+    return buffer.getvalue()
+
+
+DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def test_docx_parser_rejects_an_archive_that_expands_past_the_safe_limit() -> None:
+    """A highly compressible member is rejected on its declared size, before extraction."""
+    bomb = _zip_bytes({"word/document.xml": b"\0" * (MAX_ARCHIVE_EXPANDED_BYTES + 1)})
+    assert len(bomb) < 100_000
+
+    with pytest.raises(EvidenceParseError, match="exceeds the safe expansion limit"):
+        parse_evidence(bomb, DOCX_CONTENT_TYPE, "bomb.docx")
+
+
+def test_docx_parser_rejects_an_archive_containing_a_traversal_path() -> None:
+    archive = _zip_bytes({"../../etc/passwd": b"payload"})
+
+    with pytest.raises(EvidenceParseError, match="contains an unsafe path"):
+        parse_evidence(archive, DOCX_CONTENT_TYPE, "traversal.docx")
+
+
+def test_docx_parser_rejects_an_archive_with_too_many_members() -> None:
+    archive = _zip_bytes({f"part-{index}.xml": b"x" for index in range(MAX_ARCHIVE_FILES + 1)})
+
+    with pytest.raises(EvidenceParseError, match="exceeds the safe file limit"):
+        parse_evidence(archive, DOCX_CONTENT_TYPE, "many.docx")
+
+
+def test_docx_parser_rejects_content_that_is_not_a_zip_container() -> None:
+    with pytest.raises(EvidenceParseError, match="DOCX evidence is malformed"):
+        parse_evidence(b"plain text, not a container", DOCX_CONTENT_TYPE, "fake.docx")
+
+
+def test_image_parser_rejects_images_over_the_safe_pixel_limit() -> None:
+    buffer = io.BytesIO()
+    Image.new("L", (6000, 5000)).save(buffer, format="PNG")
+    assert MAX_IMAGE_PIXELS < 6000 * 5000
+
+    with pytest.raises(EvidenceParseError, match="exceeds the safe pixel limit"):
+        parse_evidence(buffer.getvalue(), "image/png", "huge.png")
+
+
+def test_image_parser_rejects_truncated_image_bytes() -> None:
+    buffer = io.BytesIO()
+    Image.new("RGB", (32, 32), color="white").save(buffer, format="PNG")
+    truncated = buffer.getvalue()[:40]
+
+    with pytest.raises(EvidenceParseError):
+        parse_evidence(truncated, "image/png", "truncated.png")
+
+
+def test_text_only_entrypoint_rejects_binary_evidence_formats() -> None:
+    with pytest.raises(UnsupportedEvidenceTypeError, match="must be UTF-8 text or Markdown"):
+        parse_text_evidence(b"%PDF-1.4", "application/pdf", "report.pdf")
