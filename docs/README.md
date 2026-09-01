@@ -25,6 +25,7 @@
 - [Internal-alpha delivery implementation plan](plans/2026-08-14-feat-internal-alpha-delivery-system-plan.md)
 - [Design-partner delivery plan](delivery/design-partner-delivery-plan.md)
 - [Initial backlog](backlog/initial-backlog.md)
+- [Nightly maintenance backlog](NIGHTLY-BACKLOG.md)
 
 ## Testing
 
