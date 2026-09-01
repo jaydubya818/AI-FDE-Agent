@@ -36,6 +36,7 @@
 
 ## Operations
 
+- [Local development environment](runbooks/local-development.md)
 - [Auth0 operator authentication](runbooks/auth0-operator-authentication.md)
 - [Auth0 live-tenant validation](runbooks/auth0-live-validation.md)
 - [Engagement data lifecycle](runbooks/engagement-data-lifecycle.md)

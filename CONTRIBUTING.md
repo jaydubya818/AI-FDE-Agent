@@ -18,7 +18,10 @@ outside contributions are welcome.
 2. Keep the change focused. One concern per pull request.
 3. Describe what changed and why in the PR body. If it changes behavior,
    say what a user will notice.
-4. Make sure the project still builds and any existing tests pass.
+4. Make sure the project still builds and any existing tests pass. This repo
+   is hybrid Python + JavaScript with a pinned interpreter and package
+   manager; [docs/runbooks/local-development.md](docs/runbooks/local-development.md)
+   lists the setup and the exact check commands for both halves.
 
 Pull requests are reviewed on a best-effort basis, usually within a few days.
 
