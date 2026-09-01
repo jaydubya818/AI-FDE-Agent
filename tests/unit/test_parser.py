@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 from docx import Document
-from PIL import Image
+from PIL import GifImagePlugin, Image
 from pypdf import PdfWriter
 
 from ai_fde.modules.evidence.parser import (
@@ -249,3 +249,28 @@ def test_image_parser_rejects_truncated_image_bytes() -> None:
 def test_text_only_entrypoint_rejects_binary_evidence_formats() -> None:
     with pytest.raises(UnsupportedEvidenceTypeError, match="must be UTF-8 text or Markdown"):
         parse_text_evidence(b"%PDF-1.4", "application/pdf", "report.pdf")
+def test_image_parser_does_not_invoke_decoders_outside_the_declared_format() -> None:
+    """A .png upload must not reach Pillow's other format plugins.
+
+    The extension allowlist alone runs *after* `Image.open()`, so without an
+    explicit `formats` restriction every registered decoder parses attacker
+    bytes before the mismatch is detected.
+    """
+    buffer = io.BytesIO()
+    Image.new("P", (4, 4)).save(buffer, format="GIF")
+    disguised_gif = buffer.getvalue()
+    assert disguised_gif[:6] in (b"GIF87a", b"GIF89a")
+
+    entered: list[str] = []
+    original_open = GifImagePlugin.GifImageFile._open
+
+    def record_open(self: GifImagePlugin.GifImageFile) -> None:
+        entered.append("GIF")
+        original_open(self)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(GifImagePlugin.GifImageFile, "_open", record_open)
+        with pytest.raises(EvidenceParseError, match="does not match its file extension"):
+            parse_evidence(disguised_gif, "image/png", "diagram.png")
+
+    assert entered == []
