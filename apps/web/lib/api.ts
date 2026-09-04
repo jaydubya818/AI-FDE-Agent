@@ -17,6 +17,7 @@ import type {
   WorkflowStep,
   WorkflowWorkspace,
 } from "./types";
+import type { BackendEnum } from "./backend-contract.generated";
 import {
   hostedDemoEnabled,
   hostedDemoExport,
@@ -40,7 +41,7 @@ export class ApiError extends Error {
 export type AuthenticatedOperator = {
   id: string;
   display_name: string;
-  auth_mode: "development" | "oidc";
+  auth_mode: BackendEnum<"operatorAuthMode">;
   sanitized_data_allowed: boolean;
 };
 

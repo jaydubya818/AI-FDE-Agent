@@ -23,6 +23,10 @@ class EvidenceValidationError(ValueError):
     pass
 
 
+class EvidenceTooLargeError(EvidenceValidationError):
+    pass
+
+
 def create_evidence_asset(
     session: Session,
     store: EvidenceStore,
@@ -41,7 +45,7 @@ def create_evidence_asset(
     if not content:
         raise EvidenceValidationError("Evidence cannot be empty.")
     if len(content) > MAX_EVIDENCE_BYTES:
-        raise EvidenceValidationError("Evidence exceeds the 5 MB vertical-slice limit.")
+        raise EvidenceTooLargeError("Evidence exceeds the 5 MB vertical-slice limit.")
     try:
         validate_evidence_upload_metadata(content_type, safe_name)
     except UnsupportedEvidenceTypeError as exc:

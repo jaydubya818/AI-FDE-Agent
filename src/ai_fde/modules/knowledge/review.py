@@ -14,6 +14,7 @@ from ai_fde.models import (
     Engagement,
     EvidenceAsset,
     EvidenceSegment,
+    ExtractionRun,
     OperatingEntity,
     Operator,
     ReviewDecision,
@@ -81,6 +82,9 @@ def review_claim(
         if engagement is not None:
             engagement.lifecycle_stage = "model"
 
+    session.flush()
+    completed_asset = _complete_evidence_review_if_decided(session, claim)
+
     record_audit(
         session,
         engagement_id=engagement_id,
@@ -107,7 +111,56 @@ def review_claim(
             aggregate_id=assertion.id,
             payload={"candidate_claim_id": str(claim.id)},
         )
+    if completed_asset is not None:
+        record_audit(
+            session,
+            engagement_id=engagement_id,
+            actor_id=operator.id,
+            action="evidence.review_completed",
+            target_type="evidence_asset",
+            target_id=completed_asset.id,
+            detail={},
+        )
+        publish_domain_event(
+            session,
+            engagement_id=engagement_id,
+            event_type="evidence.review_completed",
+            aggregate_type="evidence_asset",
+            aggregate_id=completed_asset.id,
+        )
     return assertion
+
+
+def _complete_evidence_review_if_decided(
+    session: Session,
+    claim: CandidateClaim,
+) -> EvidenceAsset | None:
+    extraction_run = session.get(ExtractionRun, claim.extraction_run_id)
+    if extraction_run is None:
+        return None
+    asset = session.scalar(
+        select(EvidenceAsset)
+        .where(
+            EvidenceAsset.id == extraction_run.evidence_asset_id,
+            EvidenceAsset.status == "needs_review",
+        )
+        .with_for_update()
+    )
+    if asset is None:
+        return None
+    pending_claim = session.scalar(
+        select(CandidateClaim.id)
+        .join(ExtractionRun, ExtractionRun.id == CandidateClaim.extraction_run_id)
+        .where(
+            ExtractionRun.evidence_asset_id == asset.id,
+            CandidateClaim.status == "candidate",
+        )
+        .limit(1)
+    )
+    if pending_claim is not None:
+        return None
+    asset.status = "complete"
+    return asset
 
 
 def _create_verified_assertion(

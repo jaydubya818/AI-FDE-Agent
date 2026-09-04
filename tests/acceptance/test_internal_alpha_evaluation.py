@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
+from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import operator_session
-from ai_fde.models import EngagementAssessment, Operator
-from ai_fde.modules.engagements.evaluation import internal_alpha_scorecard
+from ai_fde.models import EngagementAssessment, ExtractionRun, Operator
+from ai_fde.modules.engagements.evaluation import (
+    engagement_delivery_scorecard,
+    internal_alpha_scorecard,
+)
 from ai_fde.modules.engagements.service import create_engagement
+from ai_fde.modules.evidence.service import create_evidence_asset
 from tests.conftest import OperatorFixture
 
 
@@ -89,3 +96,64 @@ def test_internal_alpha_comparison_requires_both_three_workflow_cohorts(
             "trust_failure_count": 1.0,
             "usefulness_score": 2.0,
         }
+
+
+@pytest.mark.integration
+def test_delivery_scorecard_uses_latest_run_after_successful_recovery(
+    test_operator: OperatorFixture,
+) -> None:
+    store = InMemoryEvidenceStore()
+    recovered_at = datetime.now(UTC)
+    with operator_session(test_operator.id) as session:
+        operator = session.get_one(Operator, test_operator.id)
+        engagement = create_engagement(
+            session,
+            operator=operator,
+            name="Recovered Extraction Manufacturing",
+            primary_outcome="Show readiness after a failed extraction attempt recovers.",
+        )
+        asset = create_evidence_asset(
+            session,
+            store,
+            engagement_id=engagement.id,
+            operator=operator,
+            file_name="recovered.md",
+            content_type="text/markdown",
+            content=b"Meeting agenda with no operating claim.",
+        )
+        asset.status = "complete"
+        common = {
+            "engagement_id": engagement.id,
+            "evidence_asset_id": asset.id,
+            "extractor_name": "test-extractor",
+            "extractor_version": "1",
+            "schema_version": "claim-v1",
+            "provider_name": "test-provider",
+            "model_id": "test-model",
+            "prompt_version": "test-prompt",
+            "input_hash": asset.content_hash,
+        }
+        session.add(
+            ExtractionRun(
+                **common,
+                status="failed",
+                result_code="provider_transport_error",
+                created_at=recovered_at - timedelta(seconds=1),
+                completed_at=recovered_at - timedelta(seconds=1),
+            )
+        )
+        session.add(
+            ExtractionRun(
+                **common,
+                status="complete",
+                result_code="complete",
+                created_at=recovered_at,
+                completed_at=recovered_at,
+            )
+        )
+        session.flush()
+
+        scorecard = engagement_delivery_scorecard(session, engagement.id)
+
+        assert scorecard["milestones"]["evidence_ready"] is True
+        assert scorecard["provider"]["run_count"] == 2

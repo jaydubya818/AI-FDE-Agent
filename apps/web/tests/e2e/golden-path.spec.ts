@@ -19,7 +19,7 @@ async function reviewClaim(
 ) {
   const heading = page.getByRole("heading", { level: 3, name: summary });
   const card = page.getByRole("article").filter({ has: heading });
-  await expect(card.getByText("Exact evidence")).toBeVisible();
+  await expect(card.getByText("Exact source evidence")).toBeVisible();
   await card
     .getByRole("textbox", { name: `Decision note for: ${summary}` })
     .fill(
@@ -38,6 +38,7 @@ test("synthetic Acme reaches an approved implementation packet", async ({
   await page.setViewportSize({ width: 1440, height: 960 });
 
   const consoleErrors: string[] = [];
+  const apiRequests: string[] = [];
   const failedApiResponses: string[] = [];
   const failedApiRequests: string[] = [];
 
@@ -48,6 +49,9 @@ test("synthetic Acme reaches an approved implementation packet", async ({
     if (response.url().includes("/api/") && response.status() >= 400) {
       failedApiResponses.push(`${response.status()} ${response.url()}`);
     }
+  });
+  page.on("request", (request) => {
+    if (request.url().includes("/api/")) apiRequests.push(request.url());
   });
   page.on("requestfailed", (request) => {
     if (request.url().includes("/api/")) {
@@ -60,12 +64,25 @@ test("synthetic Acme reaches an approved implementation packet", async ({
   await page.goto("/");
   await expect(page.getByText("Checking operator session")).toBeHidden();
   await expect(page.getByText("Loading engagements…")).toBeHidden();
+  await expect(page).toHaveTitle("Factory Engineer · FDLC");
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Turn company context into a verified operating model.",
+      name: "Turn enterprise reality into a deployable software factory.",
     }),
   ).toBeVisible();
+  const ecosystemNavigation = page.getByRole("navigation", {
+    name: "FDLC ecosystem",
+  });
+  await expect(
+    ecosystemNavigation.getByRole("link", { name: /Framework/ }),
+  ).toHaveAttribute("href", "https://fdlc.ai/framework");
+  await expect(
+    ecosystemNavigation.getByRole("link", { name: /^Guide/ }),
+  ).toHaveAttribute("href", "https://ai-software-factory-mastery.vercel.app");
+  await expect(
+    ecosystemNavigation.getByRole("link", { name: /Mission Control/ }),
+  ).toHaveAttribute("href", "https://fdlc.ai/mission-control");
 
   const engagementLink = page
     .getByRole("link", {
@@ -174,7 +191,10 @@ test("synthetic Acme reaches an approved implementation packet", async ({
     testInfo.outputPath("demo-complete.png");
   await page.screenshot({ path: screenshotPath });
 
-  expect(failedApiResponses, "AI-FDE API responses").toEqual([]);
-  expect(failedApiRequests, "AI-FDE API request failures").toEqual([]);
+  expect(apiRequests, "hosted demo API requests").toEqual([]);
+  expect(failedApiResponses, "Factory Engineer API responses").toEqual([]);
+  expect(failedApiRequests, "Factory Engineer API request failures").toEqual(
+    [],
+  );
   expect(consoleErrors, "browser console errors").toEqual([]);
 });

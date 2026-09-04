@@ -35,10 +35,28 @@ test("engagement list has no WCAG A or AA axe violations", async ({ page }) => {
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Turn company context into a verified operating model.",
+      name: "Turn enterprise reality into a deployable software factory.",
     }),
   ).toBeVisible();
 
+  await expectNoAccessibilityViolations(page);
+});
+
+test("FDLC ecosystem navigation remains visible on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openEngagementList(page);
+
+  const navigation = page.getByRole("navigation", { name: "FDLC ecosystem" });
+  await expect(navigation.getByRole("link")).toHaveCount(3);
+  await expect(
+    navigation.getByRole("link", { name: /Framework/ }),
+  ).toBeVisible();
+  await expect(navigation.getByRole("link", { name: /^Guide/ })).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: /Mission Control/ }),
+  ).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });
 
@@ -85,7 +103,7 @@ test("cockpit landmarks, disclosures, and scroll regions are keyboard reachable"
   await expect(page.locator("#main-content")).toBeFocused();
 
   const noteButton = page.getByRole("button", {
-    name: "Add operator note as evidence",
+    name: "Add operator note as source evidence",
   });
   await noteButton.click();
   await expect(page.getByRole("textbox", { name: "Title" })).toBeFocused();

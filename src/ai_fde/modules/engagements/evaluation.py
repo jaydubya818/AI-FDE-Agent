@@ -168,7 +168,11 @@ def engagement_delivery_scorecard(session: Session, engagement_id: UUID) -> dict
     )
 
     run_rows = list(
-        session.scalars(select(ExtractionRun).where(ExtractionRun.engagement_id == engagement_id))
+        session.scalars(
+            select(ExtractionRun)
+            .where(ExtractionRun.engagement_id == engagement_id)
+            .order_by(ExtractionRun.created_at, ExtractionRun.id)
+        )
     )
     input_tokens = sum(item.input_tokens for item in run_rows)
     output_tokens = sum(item.output_tokens for item in run_rows)
@@ -196,8 +200,9 @@ def engagement_delivery_scorecard(session: Session, engagement_id: UUID) -> dict
         )
         .limit(1)
     )
-    run_ready = len(run_rows) >= len(evidence_statuses) and all(
-        item.status == "complete" for item in run_rows
+    latest_runs_by_asset = {item.evidence_asset_id: item for item in run_rows}
+    run_ready = len(latest_runs_by_asset) == len(evidence_statuses) and all(
+        item.status == "complete" for item in latest_runs_by_asset.values()
     )
     evidence_ready = (
         bool(evidence_statuses)

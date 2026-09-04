@@ -1,4 +1,5 @@
 import { Brand } from "@/components/brand";
+import { EcosystemLinks } from "@/components/ecosystem-links";
 import { ArrowIcon, ShieldIcon } from "@/components/icons";
 import { getAuthLoginUrl } from "@/lib/api";
 
@@ -9,8 +10,11 @@ export function AuthenticationRequired({ returnTo }: { returnTo: string }) {
       id="main-content"
       tabIndex={-1}
     >
-      <header className="mx-auto flex max-w-[1120px] items-center justify-between">
-        <Brand />
+      <header className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-4">
+        <div className="flex w-full flex-wrap items-center gap-x-7 gap-y-3 lg:w-auto lg:flex-nowrap">
+          <Brand />
+          <EcosystemLinks />
+        </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-xs font-bold text-[var(--ink-soft)]">
           <ShieldIcon /> Protected workspace
         </div>
@@ -26,8 +30,8 @@ export function AuthenticationRequired({ returnTo }: { returnTo: string }) {
               </h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-[var(--ink-soft)]">
                 Authenticate as an approved Forward Deployed Engineer. Identity
-                establishes the operator; AI-FDE&apos;s engagement memberships
-                remain the authority for every action.
+                establishes the operator; Factory Engineer engagement
+                memberships remain the authority for every action.
               </p>
               <a
                 className="mt-9 inline-flex items-center gap-3 rounded-full bg-[var(--ink)] px-6 py-3.5 text-sm font-extrabold text-white no-underline transition hover:-translate-y-0.5 hover:shadow-[var(--shadow)]"
@@ -45,7 +49,7 @@ export function AuthenticationRequired({ returnTo }: { returnTo: string }) {
                 <TrustPoint
                   number="01"
                   title="Provider tokens stay server-side"
-                  detail="The browser receives only a random, HTTP-only AI-FDE session cookie."
+                  detail="The browser receives only a random, HTTP-only Factory Engineer session cookie."
                 />
                 <TrustPoint
                   number="02"

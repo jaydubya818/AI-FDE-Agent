@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from ai_fde.adapters.storage import S3EvidenceStore
 from ai_fde.api.routes import router
+from ai_fde.api.upload_limits import EvidenceUploadLimitMiddleware
 from ai_fde.config import get_settings
 from ai_fde.db import ensure_local_operator
 from ai_fde.modules.identity.oidc import Auth0OIDCProvider
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
         description="Evidence-backed operating model for Forward Deployed Engineers.",
         lifespan=lifespan,
     )
+    app.add_middleware(EvidenceUploadLimitMiddleware)
     app.add_middleware(SafeAccessLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
