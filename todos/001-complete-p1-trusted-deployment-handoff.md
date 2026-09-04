@@ -1,5 +1,5 @@
 ---
-status: ready
+status: complete
 priority: p1
 issue_id: "001"
 tags: [factory-engineer, phase-1, phase-2, trust, mission-control, deployment]
@@ -71,7 +71,7 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 - [x] Hosted demo proves the complete synthetic flow with zero live API calls.
 - [x] Documentation reflects actual implementation state.
 - [x] All Factory Engineer and touched Mission Control checks pass.
-- [ ] Final commits are pushed and the deployed application passes post-release smoke tests.
+- [x] Final commits are pushed and the deployed application passes post-release smoke tests.
 
 ## Work Log
 
@@ -124,3 +124,22 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 **Learnings:**
 - Local Turbopack cannot bind its internal compiler port in this sandbox; the equivalent Webpack production build passed locally and Vercel's Turbopack build passed remotely.
 - Phase 2 migrations require isolated databases when verifying an earlier checkpoint.
+
+### 2026-09-04 - Phase 2 release checkpoint
+
+**By:** Codex
+
+**Actions:**
+- Committed Factory Engineer as `d08d07a` and Mission Control as `59378cb`, then pushed both
+  feature branches to GitHub.
+- Confirmed Factory Engineer GitHub Actions run `33923229418` passed the complete migration,
+  trust, contract, production-build, browser, and accessibility pipeline.
+- Deployed Vercel preview `dpl_7iCDUuEbgGTxCzgSy29aufj3AACU` and ran the golden-path,
+  internal-alpha, and six accessibility tests against the protected preview: 8 passed.
+- Revoked the short-lived Vercel automation bypass and removed its local cookie/test artifacts.
+
+**Learnings:**
+- Mission Control has no branch-triggered GitHub Actions workflow; its release authority is the
+  locally completed full test, typecheck, build, authorization, documentation, and format gates.
+- The production alias remains on the previously released Phase 1 build pending an explicit
+  product-owner promotion decision.
