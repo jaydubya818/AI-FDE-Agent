@@ -151,7 +151,7 @@ class BedrockExtractionProvider:
                 retries={"max_attempts": settings.bedrock_max_attempts, "mode": "standard"},
             ),
         )
-        self._max_tokens = settings.bedrock_max_output_tokens
+        self.max_output_tokens = settings.bedrock_max_output_tokens
 
     def extract(
         self,
@@ -159,6 +159,7 @@ class BedrockExtractionProvider:
         *,
         image_bytes: bytes | None = None,
         image_format: Literal["png", "jpeg"] | None = None,
+        max_output_tokens: int | None = None,
     ) -> ExtractionResult:
         started = time.monotonic()
         content: list[dict[str, object]] = []
@@ -176,7 +177,12 @@ class BedrockExtractionProvider:
                 modelId=cast(str, self.model_id),
                 system=[{"text": SYSTEM_PROMPT}],
                 messages=[{"role": "user", "content": content}],
-                inferenceConfig={"maxTokens": self._max_tokens, "temperature": 0},
+                inferenceConfig={
+                    "maxTokens": min(max_output_tokens, self.max_output_tokens)
+                    if max_output_tokens is not None
+                    else self.max_output_tokens,
+                    "temperature": 0,
+                },
                 outputConfig={
                     "textFormat": {
                         "type": "json_schema",

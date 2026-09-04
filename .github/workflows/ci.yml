@@ -1,0 +1,157 @@
+name: Factory Engineer CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, "codex/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factory-engineer-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Trust, contract, and browser gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: ai_fde
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_fde"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      AI_FDE_ENV: development
+      AI_FDE_RUNTIME_ROLE: migration
+      AI_FDE_AUTH_MODE: development
+      AI_FDE_DATABASE_URL: postgresql+psycopg://ai_fde_app:ai_fde_app@localhost:55432/ai_fde
+      AI_FDE_MIGRATION_DATABASE_URL: postgresql+psycopg://ai_fde_owner:ai_fde_owner@localhost:55432/ai_fde
+      AI_FDE_S3_ENDPOINT_URL: http://localhost:59000
+      AI_FDE_S3_ACCESS_KEY: ai-fde-dev
+      AI_FDE_S3_SECRET_KEY: ai-fde-dev-secret
+      AI_FDE_S3_BUCKET: ai-fde-ci-evidence
+      AI_FDE_S3_REGION: us-east-1
+      AI_FDE_S3_USE_WORKLOAD_IDENTITY: "false"
+      AI_FDE_REQUIRE_POSTGRES_TESTS: "1"
+      NEXT_PUBLIC_AI_FDE_HOSTED_DEMO: "true"
+      NEXT_PUBLIC_AI_FDE_API_URL: https://api.ai-fde.invalid/api
+      VERCEL: "1"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10.32.1
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          pnpm install --frozen-lockfile
+
+      - name: Initialize PostgreSQL roles
+        run: >-
+          docker exec --interactive "${{ job.services.postgres.id }}"
+          psql --username postgres --dbname ai_fde
+          < docker/postgres/init/001-roles.sql
+
+      - name: Start and wait for MinIO
+        run: |
+          docker run --detach --name ai-fde-ci-minio \
+            --publish 59000:9000 \
+            --env MINIO_ROOT_USER=ai-fde-dev \
+            --env MINIO_ROOT_PASSWORD=ai-fde-dev-secret \
+            minio/minio:RELEASE.2025-03-12T18-04-18Z server /data
+          for _attempt in {1..30}; do
+            if curl --fail --silent http://localhost:59000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MinIO did not become ready."
+          exit 1
+
+      - name: Apply and verify migrations
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+
+      - name: Verify generated web contract
+        run: PYTHONPATH=src uv run python scripts/generate_web_contract.py --check
+
+      - name: Run Python quality and trust tests
+        run: |
+          uv run ruff check .
+          uv run mypy src tests
+          uv run pytest -ra
+
+      - name: Run frontend static checks
+        run: |
+          pnpm --dir apps/web exec prettier --check .
+          pnpm --dir apps/web run typecheck
+          pnpm --dir apps/web run lint
+
+      - name: Build hosted demo with fail-closed release settings
+        run: pnpm --dir apps/web run build
+
+      - name: Install Chromium
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      - name: Run browser acceptance and accessibility gates
+        env:
+          AI_FDE_PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER: "true"
+        run: |
+          pnpm --dir apps/web start --hostname 127.0.0.1 --port 3000 >/tmp/factory-engineer-web.log 2>&1 &
+          web_pid=$!
+          trap 'kill "${web_pid}"' EXIT
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:3000 >/dev/null; then
+              break
+            fi
+            if [[ "${attempt}" == "60" ]]; then
+              cat /tmp/factory-engineer-web.log
+              exit 1
+            fi
+            sleep 1
+          done
+          pnpm --dir apps/web run test:e2e:golden
+          pnpm --dir apps/web run test:e2e:alpha
+          pnpm --dir apps/web run test:a11y
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-failure-evidence
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore

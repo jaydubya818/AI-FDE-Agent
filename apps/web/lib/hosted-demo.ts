@@ -139,12 +139,12 @@ function claimFor(profile: Profile, summary: string, index: number): Claim {
           ? "rule"
           : "relationship",
     subject_text: summary.split(" ")[0],
-    predicate: isEntity ? "is_a" : "verified_relationship",
+    predicate: predicateFor(summary),
     object_text: summary,
     summary,
     normalized_payload: { synthetic: true },
     confidence: "0.94",
-    materiality: isEntity ? "context" : "material",
+    materiality: isEntity ? "low" : "material",
     status: "candidate",
     created_at: NOW,
     provenance: [
@@ -153,7 +153,7 @@ function claimFor(profile: Profile, summary: string, index: number): Claim {
         evidence_segment_id: evidenceId,
         evidence_asset_id: evidenceId,
         file_name: `${profile.slug}-evidence.md`,
-        source_type: "hosted_demo_fixture",
+        source_type: "fixture",
         source_timestamp: null,
         locator: { start: 0, line: index + 1 },
         quote: summary,
@@ -162,6 +162,17 @@ function claimFor(profile: Profile, summary: string, index: number): Claim {
       },
     ],
   };
+}
+
+function predicateFor(summary: string): Claim["predicate"] {
+  if (summary.includes("is identified as")) return "IDENTIFIED_AS";
+  if (summary.includes(" owns ")) return "OWNS";
+  if (summary.includes(" uses ")) return "USES";
+  if (summary.includes(" require") || summary.includes("approved by"))
+    return "REQUIRES_APPROVAL";
+  if (summary.includes(" precedes ")) return "PRECEDES";
+  if (summary.includes(" hands off to ")) return "HANDS_OFF_TO";
+  return "GOVERNED_BY";
 }
 
 function seedEngagement(profile: Profile): DemoEngagement {
@@ -176,7 +187,7 @@ function seedEngagement(profile: Profile): DemoEngagement {
     slug: profile.slug,
     workflow_name: profile.workflow,
     primary_outcome: profile.outcome,
-    lifecycle_stage: "evidence_review",
+    lifecycle_stage: "discover",
     data_classification: "synthetic",
     data_lifecycle_status: "active",
     retention_expires_at: null,
@@ -188,11 +199,12 @@ function seedEngagement(profile: Profile): DemoEngagement {
     evidence: [
       {
         id: evidenceId,
+        engagement_id: profile.id,
         file_name: `${profile.slug}-evidence.md`,
         content_type: "text/markdown",
         content_hash: "f".repeat(64),
         byte_count: summaries.join("\n").length,
-        source_type: "hosted_demo_fixture",
+        source_type: "fixture",
         source_timestamp: null,
         status: "needs_review",
         error_message: null,
@@ -362,7 +374,7 @@ function step(
     position,
     name,
     description: `Evidence-backed ${name.toLowerCase()} step for the synthetic hosted demonstration.`,
-    step_type: "process",
+    step_type: allocation === "human" ? "human_task" : "software_task",
     actor_label: actor,
     system_label: system,
     allocation,
@@ -391,7 +403,7 @@ function createWorkflow(
     source_assertion_ids: item.operatingModel.assertions.map(
       (assertion) => assertion.id,
     ),
-    generated_by: "deterministic hosted demo",
+    generated_by: "system",
     approved_at: null,
     approval_reason: null,
     created_at: NOW,
@@ -784,6 +796,11 @@ export async function hostedDemoRequest<T>(
         },
       });
     }
+    if (!item.claims.some((candidate) => candidate.status === "candidate")) {
+      item.evidence.forEach((evidence) => {
+        if (evidence.status === "needs_review") evidence.status = "complete";
+      });
+    }
     writeState(state);
     return clone({
       claim_id: claim.id,
@@ -797,7 +814,7 @@ export async function hostedDemoRequest<T>(
   );
   if (contradictionMatch && method === "POST") {
     const payload = requestBody<{
-      resolution_type: string;
+      resolution_type: NonNullable<Contradiction["resolution_type"]>;
       reason: string;
     }>(init);
     const contradiction = item.contradictions.find(
@@ -955,6 +972,7 @@ export async function hostedDemoRequest<T>(
       file instanceof File ? file.name : note?.title || "operator-note.md";
     const evidence: Evidence = {
       id: crypto.randomUUID(),
+      engagement_id: engagementId,
       file_name: fileName,
       content_type: file instanceof File ? file.type : "text/markdown",
       content_hash: "d".repeat(64),

@@ -1,16 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f3f0e8;
-  --paper: #fbfaf6;
+  --fdlc-paper: #f3f1ea;
+  --fdlc-surface: #faf9f5;
+  --fdlc-ink: #171a18;
+  --fdlc-muted: #59605a;
+  --fdlc-line: #d3d5ce;
+  --fdlc-green: #123f32;
+  --fdlc-amber: #974d1b;
+  --canvas: var(--fdlc-paper);
+  --paper: var(--fdlc-surface);
   --paper-strong: #ffffff;
-  --ink: #132328;
-  --ink-soft: #536166;
-  --line: #d9d6cc;
+  --ink: var(--fdlc-ink);
+  --ink-soft: var(--fdlc-muted);
+  --line: var(--fdlc-line);
   --line-strong: #b8b7ae;
-  --teal: #176c68;
-  --teal-soft: #dcebe7;
-  --amber: #8b4e12;
+  --teal: var(--fdlc-green);
+  --teal-soft: #dce9e1;
+  --amber: var(--fdlc-amber);
   --amber-soft: #f5e7d2;
   --red: #9a443d;
   --red-soft: #f3dfdc;

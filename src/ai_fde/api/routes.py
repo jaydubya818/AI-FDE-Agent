@@ -62,6 +62,7 @@ from ai_fde.api.schemas import (
     WorkflowStepUpdateRequest,
     WorkflowWorkspaceResponse,
 )
+from ai_fde.api.upload_limits import read_evidence_upload
 from ai_fde.models import WorkflowVersion
 from ai_fde.modules.artifacts.service import (
     ArtifactStageGateError,
@@ -102,6 +103,7 @@ from ai_fde.modules.engagements.service import (
     list_engagements,
 )
 from ai_fde.modules.evidence.service import (
+    EvidenceTooLargeError,
     EvidenceValidationError,
     create_evidence_asset,
     list_evidence,
@@ -528,8 +530,8 @@ async def upload_evidence_endpoint(
     file: Annotated[UploadFile, File()],
     source_timestamp: Annotated[datetime | None, Form()] = None,
 ) -> EvidenceResponse:
-    content = await file.read()
     try:
+        content = await read_evidence_upload(file)
         asset = create_evidence_asset(
             session,
             store,
@@ -540,6 +542,8 @@ async def upload_evidence_endpoint(
             content=content,
             source_timestamp=source_timestamp,
         )
+    except EvidenceTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except EvidenceValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return EvidenceResponse.model_validate(asset)

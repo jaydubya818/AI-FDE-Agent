@@ -12,6 +12,7 @@ import Link from "next/link";
 
 import { AuthenticationRequired } from "@/components/authentication-required";
 import { Brand } from "@/components/brand";
+import { EcosystemLinks } from "@/components/ecosystem-links";
 import { DataLifecycleWorkspace } from "@/components/data-lifecycle-workspace";
 import { DeliveryEvaluationWorkspace } from "@/components/delivery-evaluation-workspace";
 import {
@@ -44,6 +45,7 @@ import type {
   Evidence,
   OperatingModel,
 } from "@/lib/types";
+import { GUIDE_LINKS, guideHref } from "@/lib/product";
 
 type WorkspaceData = {
   operator: AuthenticatedOperator;
@@ -60,7 +62,7 @@ const stages = [
   {
     id: "evidence",
     number: "01",
-    label: "Evidence",
+    label: "Source evidence",
     detail: "Ingest & preserve",
   },
   {
@@ -296,7 +298,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
         text:
           reason instanceof ApiError
             ? reason.message
-            : "The evidence could not be uploaded.",
+            : "The source evidence could not be uploaded.",
       });
     } finally {
       setUploading(false);
@@ -319,7 +321,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
       window.setTimeout(() => noteToggle.current?.focus(), 0);
       setNotice({
         tone: "success",
-        text: "The operator note was preserved as evidence and queued for extraction.",
+        text: "The operator note was preserved as source evidence and queued for extraction.",
       });
       await load(true);
     } catch (reason) {
@@ -444,6 +446,9 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
         className="cockpit-rail sticky top-0 flex h-screen w-[248px] flex-col border-r border-[var(--line)] bg-[var(--paper)] px-5 py-6"
       >
         <Brand />
+        <div className="mt-4 border-b border-[var(--line)] pb-4">
+          <EcosystemLinks compact />
+        </div>
         <div className="cockpit-engagement-context mt-10 border-y border-[var(--line)] py-5">
           <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.13em] text-[var(--ink-soft)]">
             Active engagement
@@ -549,11 +554,11 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">
                 The canonical model contains only human-accepted assertions.
-                Source documents remain evidence—not truth.
+                Source documents remain source evidence—not truth.
               </p>
             </div>
             <div className="grid grid-cols-3 divide-x divide-[var(--line)] rounded-2xl border border-[var(--line)] bg-[var(--paper)]">
-              <Metric value={counts.evidence} label="Evidence" />
+              <Metric value={counts.evidence} label="Source evidence" />
               <Metric
                 value={candidateClaims.length}
                 label="To review"
@@ -565,7 +570,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
 
           <div className="mt-8 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] px-4 py-3 text-xs font-semibold leading-5 text-[var(--amber)]">
             <strong className="font-extrabold">V1 capability boundary:</strong>{" "}
-            PDF, DOCX, CSV, email, image, Markdown, and text evidence are
+            PDF, DOCX, CSV, email, image, Markdown, and text source formats are
             supported. Local development uses transparent deterministic fixture
             patterns across three synthetic workflows; production requires
             fail-closed Bedrock extraction. Coding-agent execution and
@@ -584,7 +589,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
           <section className="mt-10 scroll-mt-6" id="evidence">
             <SectionHeading
               eyebrow="01 / Source record"
-              title="Evidence ledger"
+              title="Source evidence ledger"
               detail="Files are hashed, stored immutably, and processed asynchronously. Exact locations survive into every downstream assertion."
             />
             <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_0.55fr]">
@@ -593,7 +598,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                   <div className="p-9 text-center">
                     <FileIcon className="mx-auto h-8 w-8 text-[var(--ink-soft)]" />
                     <p className="display-font mt-4 text-2xl">
-                      No evidence preserved yet.
+                      No source evidence preserved yet.
                     </p>
                     <p className="mt-2 text-sm text-[var(--ink-soft)]">
                       Add a Markdown or text file to start this engagement.
@@ -682,7 +687,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                 >
                   {noteOpen
                     ? "Close operator note"
-                    : "Add operator note as evidence"}
+                    : "Add operator note as source evidence"}
                 </button>
                 {noteOpen && (
                   <form
@@ -727,6 +732,19 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
               title="Candidate claim review"
               detail="Extraction proposes. The FDE decides. Accepting a claim creates a verified assertion and preserves its exact evidence chain."
             />
+            <p className="mt-3 text-xs font-bold text-[var(--ink-soft)]">
+              FDLC Guide:{" "}
+              <a
+                className="text-[var(--teal)] underline decoration-[var(--teal)]/35 underline-offset-4"
+                href={guideHref("trust.evidence-record")}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {GUIDE_LINKS["trust.evidence-record"].title}
+                <span aria-hidden="true"> ↗</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </p>
 
             {data.contradictions.length > 0 && (
               <div className="mt-5 grid gap-3">
@@ -933,8 +951,9 @@ function DeletedWorkspace({ receipt }: { receipt: EngagementDeletionReceipt }) {
             Engagement data was permanently removed.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--ink-soft)]">
-            Customer content is no longer available in AI-FDE. This page shows
-            only the content-free receipt retained for operational proof.
+            Customer content is no longer available in Factory Engineer. This
+            page shows only the content-free receipt retained for operational
+            proof.
           </p>
         </div>
         <div className="grid gap-6 px-7 py-7 md:grid-cols-2 md:px-10">
@@ -945,7 +964,7 @@ function DeletedWorkspace({ receipt }: { receipt: EngagementDeletionReceipt }) {
             value={String(receipt.database_row_count)}
           />
           <ReceiptField
-            label="Evidence objects removed"
+            label="Source-evidence objects removed"
             value={String(receipt.evidence_object_count)}
           />
           <div className="md:col-span-2">
@@ -1058,7 +1077,7 @@ function ClaimCard({
       {provenance ? (
         <div className="mt-5 rounded-xl border border-[var(--line)] bg-white p-4">
           <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--teal)]">
-            Exact evidence
+            Exact source evidence
           </p>
           <blockquote className="mt-2 text-xs font-semibold leading-5 text-[var(--ink)]">
             “{provenance.quote}”
@@ -1168,7 +1187,7 @@ function ContradictionCard({
             >
               <option value="accepted_exception">Accepted exception</option>
               <option value="not_a_conflict">Not a conflict</option>
-              <option value="superseded">Superseded evidence</option>
+              <option value="superseded">Superseded source evidence</option>
               <option value="override">Operator override</option>
             </select>
           </label>

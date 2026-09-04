@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     bedrock_read_timeout_seconds: int = Field(default=240, ge=30, le=600)
     bedrock_max_attempts: int = Field(default=3, ge=1, le=5)
     bedrock_max_output_tokens: int = Field(default=4096, ge=512, le=8192)
+    extraction_max_segments_per_job: int = Field(default=100, ge=1, le=1000)
+    extraction_max_provider_calls_per_job: int = Field(default=50, ge=1, le=1000)
+    extraction_max_provider_tokens_per_job: int = Field(
+        default=1_000_000,
+        ge=10_000,
+        le=10_000_000,
+    )
     sanitized_data_enabled: bool = False
     deployment_validation_id: str | None = None
     worker_poll_seconds: float = 1.0

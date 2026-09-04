@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from ai_fde.adapters.storage import InMemoryEvidenceStore
 from ai_fde.db import operator_session
-from ai_fde.models import CandidateClaim, Job, Operator
+from ai_fde.models import CandidateClaim, EvidenceAsset, Job, Operator
 from ai_fde.modules.engagements.service import create_engagement, get_engagement_counts
 from ai_fde.modules.evidence.service import create_evidence_asset
 from ai_fde.modules.knowledge.jobs import lease_next_job, process_job
@@ -43,6 +43,7 @@ def test_complete_evidence_to_verified_model_lifecycle(
             content=source,
             source_type="fixture",
         )
+        asset_id = asset.id
         assert asset.status == "queued"
 
     with operator_session(test_operator.id) as session:
@@ -75,6 +76,27 @@ def test_complete_evidence_to_verified_model_lifecycle(
         )
         assert assertion is not None
         assertion_id = assertion.id
+        assert session.get_one(EvidenceAsset, asset_id).status == "needs_review"
+
+        remaining_claims = list(
+            session.scalars(
+                select(CandidateClaim).where(
+                    CandidateClaim.engagement_id == engagement_id,
+                    CandidateClaim.status == "candidate",
+                )
+            )
+        )
+        assert remaining_claims
+        for remaining_claim in remaining_claims:
+            review_claim(
+                session,
+                engagement_id=engagement_id,
+                claim_id=remaining_claim.id,
+                operator=operator,
+                decision="rejected",
+                reason="Non-material candidate closed in the acceptance lifecycle.",
+            )
+        assert session.get_one(EvidenceAsset, asset_id).status == "complete"
 
     with operator_session(test_operator.id) as session:
         counts = get_engagement_counts(session, engagement_id)

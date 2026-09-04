@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from dataclasses import dataclass
 from uuid import UUID
@@ -25,6 +26,11 @@ def postgres_available() -> None:
     try:
         session.execute(text("SELECT 1"))
     except OperationalError as exc:
+        if os.environ.get("AI_FDE_REQUIRE_POSTGRES_TESTS") == "1":
+            pytest.fail(
+                f"PostgreSQL-backed trust tests are required in this run: {exc}",
+                pytrace=False,
+            )
         pytest.skip(f"PostgreSQL test infrastructure is not running: {exc}")
     finally:
         session.close()

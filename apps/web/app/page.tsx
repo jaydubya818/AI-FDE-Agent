@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { AuthenticationRequired } from "@/components/authentication-required";
 import { Brand } from "@/components/brand";
+import { EcosystemLinks } from "@/components/ecosystem-links";
 import { ArrowIcon, PlusIcon, ShieldIcon } from "@/components/icons";
 import {
   ApiError,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/api";
 import type { AuthenticatedOperator } from "@/lib/api";
 import type { Engagement, InternalAlphaScorecard } from "@/lib/types";
+import { PRODUCT } from "@/lib/product";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -124,8 +126,11 @@ export default function EngagementsPage() {
       id="main-content"
       tabIndex={-1}
     >
-      <header className="mx-auto flex max-w-[1240px] items-center justify-between">
-        <Brand />
+      <header className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-4">
+        <div className="flex w-full flex-wrap items-center gap-x-7 gap-y-3 lg:w-auto lg:flex-nowrap">
+          <Brand />
+          <EcosystemLinks />
+        </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-3 rounded-full border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-xs font-bold text-[var(--ink-soft)]">
             <span className="status-dot text-[var(--teal)]" />
@@ -149,16 +154,17 @@ export default function EngagementsPage() {
 
       <section className="mx-auto grid max-w-[1240px] gap-14 pb-16 pt-20 lg:grid-cols-[1fr_0.78fr] lg:items-end lg:pt-28">
         <div>
-          <p className="eyebrow">Evidence-backed delivery</p>
+          <p className="eyebrow">FDLC Deploy · evidence-backed</p>
           <h1 className="display-font mt-5 max-w-3xl text-5xl font-medium leading-[0.95] tracking-[-0.04em] md:text-7xl">
-            Turn company context into a verified operating model.
+            {PRODUCT.conciseDescription}
           </h1>
         </div>
         <div className="max-w-xl lg:pb-2">
           <p className="text-base leading-7 text-[var(--ink-soft)]">
-            A stateful workspace for Forward Deployed Engineers to ingest
-            evidence, verify claims, and build an implementation-ready view of
-            how a company actually operates.
+            {PRODUCT.shortName} helps a human FDE turn source evidence into
+            verified operating intent, reproducible economics, and a
+            version-pinned implementation packet. Governed execution remains in
+            Mission Control.
           </p>
           {hostedDemoEnabled && (
             <p className="mt-4 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] px-4 py-3 text-xs font-bold leading-5 text-[var(--amber)]">
@@ -285,7 +291,7 @@ export default function EngagementsPage() {
                   : alphaScorecard.comparison.reason}
               </p>
               <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em]">
-                AI-FDE completed operator cohort:{" "}
+                Factory Engineer completed operator cohort:{" "}
                 {
                   alphaScorecard.comparison.methods.ai_fde
                     .completed_operator_assessment_count

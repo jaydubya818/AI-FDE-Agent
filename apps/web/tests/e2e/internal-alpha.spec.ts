@@ -70,7 +70,7 @@ async function reviewClaim(
 ) {
   const heading = page.getByRole("heading", { level: 3, name: summary });
   const card = page.getByRole("article").filter({ has: heading });
-  await expect(card.getByText("Exact evidence")).toBeVisible();
+  await expect(card.getByText("Exact source evidence")).toBeVisible();
   await card
     .getByRole("textbox", { name: "Decision note for: " + summary })
     .fill(
@@ -149,7 +149,7 @@ async function completeProfile(page: Page, profile: Profile) {
   await page.getByRole("button", { name: "Record assessment" }).click();
   await expect(page.getByText(/Assessment saved/)).toBeVisible();
   await expect(
-    page.getByText("AI-FDE · operator · completed", { exact: true }),
+    page.getByText("Factory Engineer · operator · completed", { exact: true }),
   ).toBeVisible();
 }
 
@@ -160,6 +160,7 @@ test("three synthetic workflows complete an internal alpha rehearsal", async ({
   await page.setViewportSize({ width: 1440, height: 960 });
 
   const consoleErrors: string[] = [];
+  const apiRequests: string[] = [];
   const failedApiResponses: string[] = [];
   const failedApiRequests: string[] = [];
   page.on("console", (message) => {
@@ -169,6 +170,9 @@ test("three synthetic workflows complete an internal alpha rehearsal", async ({
     if (response.url().includes("/api/") && response.status() >= 400) {
       failedApiResponses.push(String(response.status()) + " " + response.url());
     }
+  });
+  page.on("request", (request) => {
+    if (request.url().includes("/api/")) apiRequests.push(request.url());
   });
   page.on("requestfailed", (request) => {
     if (request.url().includes("/api/")) {
@@ -184,7 +188,7 @@ test("three synthetic workflows complete an internal alpha rehearsal", async ({
     await completeProfile(page, profile);
   }
 
-  await page.getByRole("link", { name: "AI-FDE home" }).click();
+  await page.getByRole("link", { name: "Factory Engineer home" }).click();
   await expect(
     page.getByRole("heading", {
       level: 2,
@@ -193,7 +197,7 @@ test("three synthetic workflows complete an internal alpha rehearsal", async ({
   ).toBeVisible();
   await expect(page.getByText("3/3", { exact: true })).toBeVisible();
   await expect(
-    page.getByText(/AI-FDE completed operator cohort: 3\/3/),
+    page.getByText(/Factory Engineer completed operator cohort: 3\/3/),
   ).toBeVisible();
   await expect(page.getByText(/Conventional baseline: 0\/3/)).toBeVisible();
   await expect(
@@ -205,7 +209,10 @@ test("three synthetic workflows complete an internal alpha rehearsal", async ({
     testInfo.outputPath("internal-alpha-scorecard.png");
   await page.screenshot({ fullPage: true, path: screenshotPath });
 
-  expect(failedApiResponses, "AI-FDE API responses").toEqual([]);
-  expect(failedApiRequests, "AI-FDE API request failures").toEqual([]);
+  expect(apiRequests, "hosted demo API requests").toEqual([]);
+  expect(failedApiResponses, "Factory Engineer API responses").toEqual([]);
+  expect(failedApiRequests, "Factory Engineer API request failures").toEqual(
+    [],
+  );
   expect(consoleErrors, "browser console errors").toEqual([]);
 });

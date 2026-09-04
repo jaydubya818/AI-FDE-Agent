@@ -1,12 +1,17 @@
+import type {
+  BackendEnum,
+  MissingBackendFields,
+} from "./backend-contract.generated";
+
 export type Engagement = {
   id: string;
   name: string;
   slug: string;
   workflow_name: string;
   primary_outcome: string;
-  lifecycle_stage: string;
-  data_classification: "synthetic" | "sanitized";
-  data_lifecycle_status: "active" | "deletion_processing" | "deletion_failed";
+  lifecycle_stage: BackendEnum<"engagementLifecycleStage">;
+  data_classification: BackendEnum<"engagementDataClassification">;
+  data_lifecycle_status: BackendEnum<"engagementDataLifecycleStatus">;
   retention_expires_at: string | null;
   created_at: string;
   updated_at: string;
@@ -23,13 +28,14 @@ export type EngagementWorkspace = {
 
 export type Evidence = {
   id: string;
+  engagement_id: string;
   file_name: string;
   content_type: string;
   content_hash: string;
   byte_count: number;
-  source_type: string;
+  source_type: BackendEnum<"evidenceSourceType">;
   source_timestamp: string | null;
-  status: "queued" | "processing" | "needs_review" | "failed" | "complete";
+  status: BackendEnum<"evidenceStatus">;
   error_message: string | null;
   created_at: string;
 };
@@ -39,7 +45,7 @@ export type Provenance = {
   evidence_segment_id: string;
   evidence_asset_id: string;
   file_name: string;
-  source_type: string;
+  source_type: BackendEnum<"evidenceSourceType">;
   source_timestamp: string | null;
   locator: Record<string, unknown>;
   quote: string;
@@ -49,15 +55,15 @@ export type Provenance = {
 
 export type Claim = {
   id: string;
-  claim_kind: "entity" | "relationship" | "rule" | "exception";
+  claim_kind: BackendEnum<"claimKind">;
   subject_text: string;
-  predicate: string;
+  predicate: BackendEnum<"claimPredicate">;
   object_text: string | null;
   summary: string;
   normalized_payload: Record<string, unknown>;
   confidence: string;
-  materiality: string;
-  status: "candidate" | "accepted" | "rejected" | "deferred";
+  materiality: BackendEnum<"claimMateriality">;
+  status: BackendEnum<"claimStatus">;
   created_at: string;
   provenance: Provenance[];
 };
@@ -65,11 +71,11 @@ export type Claim = {
 export type Contradiction = {
   id: string;
   summary: string;
-  status: string;
+  status: BackendEnum<"contradictionStatus">;
   blocking: boolean;
   left_claim_id: string;
   right_claim_id: string;
-  resolution_type: string | null;
+  resolution_type: BackendEnum<"contradictionResolutionType"> | null;
   resolution_reason: string | null;
   resolved_by_id: string | null;
   resolved_at: string | null;
@@ -78,7 +84,7 @@ export type Contradiction = {
 
 export type Entity = {
   id: string;
-  entity_type: string;
+  entity_type: BackendEnum<"entityType">;
   canonical_key: string;
   display_name: string;
   status: string;
@@ -98,7 +104,7 @@ export type Assertion = {
   recorded_at: string;
   evidence: {
     file_name: string;
-    source_type: string;
+    source_type: BackendEnum<"evidenceSourceType">;
     source_timestamp: string | null;
     locator: Record<string, unknown>;
     quote: string;
@@ -117,10 +123,10 @@ export type WorkflowStep = {
   position: number;
   name: string;
   description: string;
-  step_type: string;
+  step_type: BackendEnum<"workflowStepType">;
   actor_label: string | null;
   system_label: string | null;
-  allocation: "human" | "software" | "ai" | "ai_human";
+  allocation: BackendEnum<"workflowAllocation">;
   rationale: string;
   controls: string[];
   source_assertion_id: string | null;
@@ -128,14 +134,14 @@ export type WorkflowStep = {
 
 export type Workflow = {
   id: string;
-  workflow_kind: "current" | "target";
+  workflow_kind: BackendEnum<"workflowKind">;
   version_number: number;
   name: string;
   objective: string;
-  status: "draft" | "approved" | "stale";
+  status: BackendEnum<"workflowStatus">;
   source_workflow_id: string | null;
   source_assertion_ids: string[];
-  generated_by: string;
+  generated_by: BackendEnum<"workflowGeneratedBy">;
   approved_at: string | null;
   approval_reason: string | null;
   created_at: string;
@@ -173,7 +179,7 @@ export type EconomicScenario = {
 export type EconomicCase = {
   id: string;
   version_number: number;
-  status: "draft" | "approved" | "stale";
+  status: BackendEnum<"economicCaseStatus">;
   source_target_workflow_id: string;
   formula_version: string;
   inputs: Record<string, EconomicValue>;
@@ -187,17 +193,10 @@ export type EconomicCase = {
 
 export type ImplementationArtifact = {
   id: string;
-  artifact_type:
-    | "prd"
-    | "architecture"
-    | "business_rules"
-    | "integration_requirements"
-    | "approval_controls"
-    | "evaluation_plan"
-    | "implementation_spec";
+  artifact_type: BackendEnum<"artifactType">;
   packet_version: number;
   version_number: number;
-  status: "current" | "stale";
+  status: BackendEnum<"artifactStatus">;
   title: string;
   content: string;
   content_hash: string;
@@ -220,7 +219,7 @@ export type EngagementExport = {
 };
 
 export type EngagementDataLifecycle = {
-  status: "active" | "deletion_processing" | "deletion_failed";
+  status: BackendEnum<"engagementDataLifecycleStatus">;
   retention_expires_at: string | null;
   membership_role: "owner" | "operator" | "viewer";
   latest_export: EngagementExport | null;
@@ -232,8 +231,8 @@ export type EngagementDataLifecycle = {
 export type EngagementDeletionReceipt = {
   id: string;
   engagement_id: string;
-  status: "processing" | "completed" | "failed";
-  data_classification: "synthetic" | "sanitized";
+  status: BackendEnum<"deletionReceiptStatus">;
+  data_classification: BackendEnum<"deletionReceiptDataClassification">;
   export_id: string;
   source_fingerprint: string;
   archive_hash: string;
@@ -244,9 +243,9 @@ export type EngagementDeletionReceipt = {
   completed_at: string | null;
 };
 
-export type DeliveryMethod = "ai_fde" | "conventional";
-export type AssessmentPerspective = "operator" | "engineering";
-export type AssessmentOutcome = "completed" | "blocked" | "abandoned";
+export type DeliveryMethod = BackendEnum<"assessmentDeliveryMethod">;
+export type AssessmentPerspective = BackendEnum<"assessmentPerspective">;
+export type AssessmentOutcome = BackendEnum<"assessmentOutcome">;
 
 export type EngagementAssessment = {
   id: string;
@@ -345,3 +344,51 @@ export type InternalAlphaScorecard = {
     reason: string | null;
   };
 };
+
+type AssertNoMissingBackendFields<Value extends Record<string, never>> = Value;
+
+export type BackendResponseContractParity = AssertNoMissingBackendFields<{
+  assertion: MissingBackendFields<"assertion", Assertion>;
+  claim: MissingBackendFields<"claim", Claim>;
+  contradiction: MissingBackendFields<"contradiction", Contradiction>;
+  deliveryScorecard: MissingBackendFields<
+    "deliveryScorecard",
+    DeliveryScorecard
+  >;
+  economicCase: MissingBackendFields<"economicCase", EconomicCase>;
+  engagement: MissingBackendFields<"engagement", Engagement>;
+  engagementAssessment: MissingBackendFields<
+    "engagementAssessment",
+    EngagementAssessment
+  >;
+  engagementDataLifecycle: MissingBackendFields<
+    "engagementDataLifecycle",
+    EngagementDataLifecycle
+  >;
+  engagementDeletionReceipt: MissingBackendFields<
+    "engagementDeletionReceipt",
+    EngagementDeletionReceipt
+  >;
+  engagementWorkspace: MissingBackendFields<
+    "engagementWorkspace",
+    EngagementWorkspace
+  >;
+  entity: MissingBackendFields<"entity", Entity>;
+  evidence: MissingBackendFields<"evidence", Evidence>;
+  implementationArtifact: MissingBackendFields<
+    "implementationArtifact",
+    ImplementationArtifact
+  >;
+  internalAlphaScorecard: MissingBackendFields<
+    "internalAlphaScorecard",
+    InternalAlphaScorecard
+  >;
+  operatingModel: MissingBackendFields<"operatingModel", OperatingModel>;
+  provenance: MissingBackendFields<"provenance", Provenance>;
+  workflow: MissingBackendFields<"workflow", Workflow>;
+  workflowStep: MissingBackendFields<"workflowStep", WorkflowStep>;
+  workflowWorkspace: MissingBackendFields<
+    "workflowWorkspace",
+    WorkflowWorkspace
+  >;
+}>;

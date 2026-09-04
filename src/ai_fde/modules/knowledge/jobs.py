@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
@@ -19,7 +20,7 @@ from ai_fde.models import (
     Job,
     Operator,
 )
-from ai_fde.modules.evidence.parser import parse_evidence
+from ai_fde.modules.evidence.parser import ParsedSegment, parse_evidence
 from ai_fde.modules.knowledge.extractor import (
     DeterministicFixtureExtractor,
     ExtractionProvider,
@@ -29,6 +30,22 @@ from ai_fde.modules.shared import publish_domain_event, record_audit
 
 class JobProcessingError(RuntimeError):
     pass
+
+
+class ExtractionBudgetExceededError(JobProcessingError):
+    pass
+
+
+@dataclass(frozen=True)
+class ExtractionJobBudget:
+    max_segments: int = 100
+    max_provider_calls: int = 50
+    max_provider_tokens: int = 1_000_000
+
+
+# UTF-8 bytes conservatively upper-bound text tokens. This additional reserve covers the fixed
+# system prompt, schema, message envelope, and provider tokenization variance for each call.
+PROVIDER_INPUT_TOKEN_RESERVE = 16_384
 
 
 def lease_next_job(session: Session, engagement_id: UUID, lease_seconds: int) -> Job | None:
@@ -65,6 +82,7 @@ def process_job(
     job: Job,
     extractor: ExtractionProvider | None = None,
     actor: Operator | None = None,
+    budget: ExtractionJobBudget | None = None,
 ) -> None:
     if job.kind != "ingest_evidence":
         raise JobProcessingError(f"Unsupported job kind: {job.kind}")
@@ -75,11 +93,18 @@ def process_job(
         raise JobProcessingError("The evidence asset is not available in this engagement.")
 
     resolved_extractor = extractor or DeterministicFixtureExtractor()
+    resolved_budget = budget or ExtractionJobBudget()
     asset.status = "processing"
     asset.error_message = None
     job.progress = 15
     content = store.get(asset.storage_key)
     parsed_segments = parse_evidence(content, asset.content_type, asset.file_name)
+    _enforce_extraction_budget(
+        parsed_segments,
+        content=content,
+        extractor=resolved_extractor,
+        budget=resolved_budget,
+    )
 
     existing_segment = session.scalar(
         select(EvidenceSegment.id).where(EvidenceSegment.evidence_asset_id == asset.id).limit(1)
@@ -129,9 +154,15 @@ def process_job(
             parsed.content,
             image_bytes=image_bytes,
             image_format=image_format,
+            max_output_tokens=resolved_extractor.max_output_tokens,
         )
         extraction_run.input_tokens += result.input_tokens
         extraction_run.output_tokens += result.output_tokens
+        provider_tokens = extraction_run.input_tokens + extraction_run.output_tokens
+        if provider_tokens > resolved_budget.max_provider_tokens:
+            raise ExtractionBudgetExceededError(
+                "Extraction stopped because the provider token budget was exceeded."
+            )
         extraction_run.latency_ms += result.latency_ms
         for extracted in result.claims:
             if not (
@@ -208,6 +239,40 @@ def process_job(
                 "result_code": extraction_run.result_code,
                 "claim_count": len(created_claims),
             },
+        )
+
+
+def _enforce_extraction_budget(
+    parsed_segments: list[ParsedSegment],
+    *,
+    content: bytes,
+    extractor: ExtractionProvider,
+    budget: ExtractionJobBudget,
+) -> None:
+    segment_count = len(parsed_segments)
+    if segment_count > budget.max_segments:
+        raise ExtractionBudgetExceededError(
+            "Evidence produced "
+            f"{segment_count} segments; the per-job limit is {budget.max_segments}."
+        )
+    if segment_count > budget.max_provider_calls:
+        raise ExtractionBudgetExceededError(
+            "Evidence would exceed the per-job extraction provider-call limit."
+        )
+    if extractor.max_output_tokens == 0:
+        return
+
+    provider_token_ceiling = 0
+    for parsed in parsed_segments:
+        provider_token_ceiling += (
+            len(parsed.content.encode("utf-8"))
+            + (len(content) if parsed.modality == "image" else 0)
+            + PROVIDER_INPUT_TOKEN_RESERVE
+            + extractor.max_output_tokens
+        )
+    if provider_token_ceiling > budget.max_provider_tokens:
+        raise ExtractionBudgetExceededError(
+            "Evidence would exceed the conservative per-job provider-token ceiling."
         )
 
 

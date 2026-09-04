@@ -20,6 +20,8 @@ from ai_fde.modules.knowledge.extractor import (
     ExtractionProviderError,
 )
 from ai_fde.modules.knowledge.jobs import (
+    ExtractionBudgetExceededError,
+    ExtractionJobBudget,
     JobProcessingError,
     fail_job,
     lease_next_job,
@@ -55,6 +57,12 @@ def public_job_failure(error: Exception) -> PublicJobFailure:
             code=error.result_code,
             message="The configured extraction provider could not complete this evidence.",
             retryable=error.retryable,
+        )
+    if isinstance(error, ExtractionBudgetExceededError):
+        return PublicJobFailure(
+            code="extraction_budget_exceeded",
+            message="Evidence exceeded a configured extraction workload budget.",
+            retryable=False,
         )
     if isinstance(error, JobProcessingError):
         return PublicJobFailure(
@@ -127,6 +135,15 @@ class Worker:
                         job,
                         extractor=self.extractor,
                         actor=actor,
+                        budget=ExtractionJobBudget(
+                            max_segments=self.settings.extraction_max_segments_per_job,
+                            max_provider_calls=(
+                                self.settings.extraction_max_provider_calls_per_job
+                            ),
+                            max_provider_tokens=(
+                                self.settings.extraction_max_provider_tokens_per_job
+                            ),
+                        ),
                     )
                 logger.info("Completed job %s", job_id)
             except Exception as exc:  # noqa: BLE001 - boundary records all job failures
