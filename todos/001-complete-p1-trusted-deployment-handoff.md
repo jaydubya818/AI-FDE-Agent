@@ -80,11 +80,13 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 **By:** Codex
 
 **Actions:**
+
 - Parsed the Phase 2 trusted deployment handoff brief.
 - Confirmed the existing clean feature worktree and branch.
 - Selected incremental vertical slices to preserve rollback and reviewability.
 
 **Learnings:**
+
 - Requirements are explicit; no additional product discovery is required before implementation.
 - Authenticated retrieval resolves the highest-risk integration decision from the architecture phase.
 
@@ -93,6 +95,7 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 **By:** Codex
 
 **Actions:**
+
 - Implemented and independently reviewed the Factory Engineer model, readiness, opportunity,
   package, authenticated retrieval, and synthetic handoff flow.
 - Implemented Mission Control's bounded retrieval, full contract validation, target reauthorization,
@@ -101,6 +104,7 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
   golden-path, internal-alpha, and accessibility gates.
 
 **Learnings:**
+
 - Full package provenance is validated at the trust boundary, while Mission Control persists only
   mapped draft intent, selected lineage IDs, the authenticated package URL, and bounded receipt
   metadata.
@@ -116,12 +120,14 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 **By:** Codex
 
 **Actions:**
+
 - Committed Phase 1 as `af0196f` and pushed `codex/factory-engineer-evolution`.
 - Verified the exact commit in an isolated worktree and disposable PostgreSQL database: 55 Python tests, migrations/check, Ruff, mypy, generated contract, actionlint, Prettier, TypeScript, ESLint, production Webpack build, golden path, internal alpha, and six accessibility tests all passed.
 - Deployed the exact commit to Vercel preview `dpl_Cg4BhqD5Wo8wymL3peSvcZrdz49J`.
 - Confirmed GitHub Actions run `33918334562` passed the complete trust, contract, native Turbopack build, browser, and accessibility pipeline.
 
 **Learnings:**
+
 - Local Turbopack cannot bind its internal compiler port in this sandbox; the equivalent Webpack production build passed locally and Vercel's Turbopack build passed remotely.
 - Phase 2 migrations require isolated databases when verifying an earlier checkpoint.
 
@@ -130,6 +136,7 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 **By:** Codex
 
 **Actions:**
+
 - Committed Factory Engineer as `d08d07a` and Mission Control as `59378cb`, then pushed both
   feature branches to GitHub.
 - Confirmed Factory Engineer GitHub Actions run `33923229418` passed the complete migration,
@@ -139,7 +146,32 @@ Use incremental vertical slices. Ship the completed Phase 1 foundation and harde
 - Revoked the short-lived Vercel automation bypass and removed its local cookie/test artifacts.
 
 **Learnings:**
+
 - Mission Control has no branch-triggered GitHub Actions workflow; its release authority is the
   locally completed full test, typecheck, build, authorization, documentation, and format gates.
 - The production alias remains on the previously released Phase 1 build pending an explicit
   product-owner promotion decision.
+
+### 2026-09-04 - Phase 2 production promotion
+
+**By:** Codex
+
+**Actions:**
+
+- Promoted exact Factory Engineer revision `196ab3a` as Vercel deployment
+  `dpl_Mm1hRiJWrtcxJRaVdoWyjfCd9Pty` after the protected-preview walkthrough passed.
+- Verified both production aliases resolve to the promoted deployment and retained Phase 1
+  deployment `dpl_EJ3bfZ9tz3Tk3TTFev7DmJAufFY3` as the rollback target.
+- Passed the live production golden path, internal-alpha flow, and six accessibility checks:
+  8/8 browser tests passed with zero `/api/` requests and zero browser console errors.
+- Passed supplemental production checks for public access, JS/CSS assets, client navigation,
+  direct route refresh, hydration/runtime behavior, expected 404 handling, and browser vitals.
+- Recorded the full release evidence in
+  `docs/fdlc-factory-engineer/phase-2/production-promotion-2026-09-04.md`.
+
+**Learnings:**
+
+- This is a public, browser-local synthetic demonstration release, not customer-data production
+  qualification. The live-service path remains fail closed.
+- Mission Control importer revision `59378cb` remained pushed and was not applied to a live Convex
+  environment during this release.

@@ -109,7 +109,7 @@ The repository does not claim production readiness or realized customer ROI. Cur
 
 [Open the current production demonstration](https://ai-fde-agent.vercel.app).
 
-The production alias currently runs the Phase 1 explicitly labeled, deterministic, synthetic operator workflow. The Phase 2 release candidate adds factory-opportunity comparison and selection, seven-stage FDLC readiness, digest-bound package approval/publication, and a simulated Mission Control retrieval. Phase 2 is deployed to a commit-specific Vercel preview and smoke-tested before any separate production promotion.
+The production alias runs the verified Phase 2 hosted demo from revision `196ab3a`. It adds factory-opportunity comparison and selection, seven-stage FDLC readiness, digest-bound package approval/publication, and a simulated Mission Control retrieval to the explicitly labeled, deterministic, synthetic operator workflow. The release was promoted and acceptance-tested on 2026-09-04; see the [Phase 2 production promotion record](docs/fdlc-factory-engineer/phase-2/production-promotion-2026-09-04.md).
 
 Demo state is stored in the evaluator's browser. It can be reset by clearing site data. The hosted demo makes no model call, accepts no customer data, and does not claim live PostgreSQL isolation, Auth0 validation, a persistent worker, AWS object storage, Bedrock extraction, or production readiness. Those capabilities remain on the real FastAPI deployment path and fail closed until their external gates are satisfied.
 
@@ -123,13 +123,13 @@ vercel deploy . \
   -y
 ```
 
-Production promotion is an explicit follow-on decision after preview acceptance; it uses the same
-verified commit and safety variables with `vercel deploy . --prod`.
+Production deployments use the same verified commit and fail-closed safety variables with
+`vercel deploy . --prod`. Promotion remains an explicit decision after preview acceptance.
 
 The invalid API URL is intentional in hosted-demo mode: browser requests are handled by the synthetic adapter and cannot silently fall through to an unvalidated service.
 
-Run the Phase 2 golden path and accessibility checks against the commit-specific preview URL
-returned by Vercel (replace the example host below):
+Run the Phase 2 golden path and accessibility checks against the intended deployed URL returned by
+Vercel (replace the example host below):
 
 ```bash
 AI_FDE_PLAYWRIGHT_BASE_URL=https://replace-with-preview.vercel.app \
