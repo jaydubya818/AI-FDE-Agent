@@ -345,13 +345,20 @@ def _validate_zip_container(content: bytes) -> None:
 
 def _parse_image(content: bytes, suffix: str, file_name: str) -> list[ParsedSegment]:
     expected_format = "JPEG" if suffix in {"jpg", "jpeg"} else "PNG"
+    # `formats` restricts which decoders Pillow may try. Without it every
+    # registered plugin parses the upload before the extension check below can
+    # reject it, so the png/jpeg allowlist would not actually bound the decoder
+    # surface reachable from an evidence upload.
+    allowed_formats = [expected_format]
     try:
-        with Image.open(io.BytesIO(content)) as image:
+        with Image.open(io.BytesIO(content), formats=allowed_formats) as image:
             image.verify()
-        with Image.open(io.BytesIO(content)) as image:
+        with Image.open(io.BytesIO(content), formats=allowed_formats) as image:
             width, height = image.size
             actual_format = image.format
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+    except UnidentifiedImageError as exc:
+        raise EvidenceParseError("Image content does not match its file extension.") from exc
+    except (OSError, Image.DecompressionBombError) as exc:
         raise EvidenceParseError("Image evidence is malformed or unsafe.") from exc
     if actual_format != expected_format:
         raise EvidenceParseError("Image content does not match its file extension.")
