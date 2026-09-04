@@ -21,7 +21,10 @@ Source evidence
   → Human / Software / AI allocation
   → approved target workflow
   → reproducible economics
-  → implementation-ready artifacts
+  → ranked factory opportunities
+  → explainable FDLC readiness
+  → approved immutable deployment package
+  → authenticated Mission Control handoff
 ```
 
 ## Why this matters
@@ -102,43 +105,47 @@ The synthetic evidence-to-specification path is implemented across multiple work
 
 The repository does not claim production readiness or realized customer ROI. Current economics are scenario-based and reproducible from versioned inputs.
 
-## Live hosted demonstration
+## Hosted demonstrations
 
-[Open the public Factory Engineer demonstration](https://ai-fde-agent.vercel.app).
+[Open the current production demonstration](https://ai-fde-agent.vercel.app).
 
-The Vercel production build runs an explicitly labeled, deterministic, synthetic demonstration of the current operator workflow. It lets an evaluator review claims, resolve contradictions, approve current and target workflows, calculate low/base/high economics, generate seven version-pinned artifacts, and record a delivery assessment.
+The production alias currently runs the Phase 1 explicitly labeled, deterministic, synthetic operator workflow. The Phase 2 release candidate adds factory-opportunity comparison and selection, seven-stage FDLC readiness, digest-bound package approval/publication, and a simulated Mission Control retrieval. Phase 2 is deployed to a commit-specific Vercel preview and smoke-tested before any separate production promotion.
 
 Demo state is stored in the evaluator's browser. It can be reset by clearing site data. The hosted demo makes no model call, accepts no customer data, and does not claim live PostgreSQL isolation, Auth0 validation, a persistent worker, AWS object storage, Bedrock extraction, or production readiness. Those capabilities remain on the real FastAPI deployment path and fail closed until their external gates are satisfied.
 
-The public build is deployed from the repository root with the Vercel project root configured as `apps/web`. The Next.js configuration fails the Vercel build unless both safety variables are present:
+Preview builds are deployed from the repository root with the Vercel project root configured as `apps/web`. The Next.js configuration fails the Vercel build unless both safety variables are present:
 
 ```bash
 vercel link --yes --project ai-fde-agent
-vercel deploy . --prod \
+vercel deploy . \
   --build-env NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=true \
   --build-env NEXT_PUBLIC_AI_FDE_API_URL=https://api.ai-fde.invalid/api \
   -y
 ```
 
+Production promotion is an explicit follow-on decision after preview acceptance; it uses the same
+verified commit and safety variables with `vercel deploy . --prod`.
+
 The invalid API URL is intentional in hosted-demo mode: browser requests are handled by the synthetic adapter and cannot silently fall through to an unvalidated service.
 
-Run the deployed golden path and accessibility checks directly against the public URL:
+Run the Phase 2 golden path and accessibility checks against the commit-specific preview URL
+returned by Vercel (replace the example host below):
 
 ```bash
-AI_FDE_PLAYWRIGHT_BASE_URL=https://ai-fde-agent.vercel.app \
+AI_FDE_PLAYWRIGHT_BASE_URL=https://replace-with-preview.vercel.app \
 AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER=true \
 pnpm --dir apps/web run test:e2e:golden
 
-AI_FDE_PLAYWRIGHT_BASE_URL=https://ai-fde-agent.vercel.app \
+AI_FDE_PLAYWRIGHT_BASE_URL=https://replace-with-preview.vercel.app \
 AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER=true \
 pnpm --dir apps/web run test:e2e:alpha
 
-AI_FDE_PLAYWRIGHT_BASE_URL=https://ai-fde-agent.vercel.app \
+AI_FDE_PLAYWRIGHT_BASE_URL=https://replace-with-preview.vercel.app \
 AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER=true \
 pnpm --dir apps/web run test:a11y
 ```
 
-Production browser evidence:
+Prior Phase 1 production browser evidence:
 
 ![Three completed synthetic workflow profiles](output/playwright/production/production-internal-alpha-scorecard.png)
 

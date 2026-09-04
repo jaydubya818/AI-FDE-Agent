@@ -157,9 +157,12 @@ summary:focus-visible,
 
   .cockpit-rail nav {
     display: grid;
+    flex: none;
     grid-template-columns: repeat(3, minmax(150px, 1fr));
     overflow-x: auto;
+    overflow-y: visible;
     padding-bottom: 0.35rem;
+    padding-right: 0;
   }
 
   .cockpit-isolation {

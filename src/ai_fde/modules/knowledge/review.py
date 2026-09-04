@@ -77,7 +77,7 @@ def review_claim(
     assertion: Assertion | None = None
     if decision == "accepted":
         assertion = _create_verified_assertion(session, claim, operator)
-        stale_after_model_change(session, engagement_id)
+        stale_after_model_change(session, engagement_id, actor_id=operator.id)
         engagement = session.get(Engagement, engagement_id)
         if engagement is not None:
             engagement.lifecycle_stage = "model"

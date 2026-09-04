@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from ai_fde.config import get_settings
 from ai_fde.models import Base
+from ai_fde.modules.factory_engineer import models as factory_engineer_models  # noqa: F401
 
 config = context.config
 settings = get_settings()

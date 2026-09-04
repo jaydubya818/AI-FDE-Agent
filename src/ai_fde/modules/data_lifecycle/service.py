@@ -43,6 +43,14 @@ from ai_fde.models import (
     WorkflowStep,
     WorkflowVersion,
 )
+from ai_fde.modules.factory_engineer.models import (
+    CustomerFactoryModelVersion,
+    FactoryDeploymentPackageVersion,
+    FactoryOpportunity,
+    FDLCReadinessAssessment,
+    PackageRetrievalEvent,
+    PackageRetrievalGrant,
+)
 from ai_fde.modules.identity.service import authorize_engagement
 from ai_fde.modules.shared import publish_domain_event, record_audit
 
@@ -67,8 +75,17 @@ FINGERPRINT_MODELS: tuple[type[Any], ...] = (
     WorkflowStep,
     EconomicCase,
     ImplementationArtifact,
+    CustomerFactoryModelVersion,
+    FDLCReadinessAssessment,
+    FactoryOpportunity,
+    FactoryDeploymentPackageVersion,
+    PackageRetrievalGrant,
+    PackageRetrievalEvent,
 )
-ARCHIVE_MODELS: tuple[type[Any], ...] = (*FINGERPRINT_MODELS, AuditEvent)
+ARCHIVE_MODELS: tuple[type[Any], ...] = (
+    *FINGERPRINT_MODELS,
+    AuditEvent,
+)
 DELETE_COUNT_MODELS: tuple[type[Any], ...] = (
     *ARCHIVE_MODELS,
     Job,
@@ -163,6 +180,11 @@ def create_engagement_export(
     operator: Operator,
     now: datetime | None = None,
 ) -> GeneratedExport:
+    engagement = session.scalar(
+        select(Engagement).where(Engagement.id == engagement_id).with_for_update()
+    )
+    if engagement is None:
+        raise DataLifecycleError("Engagement not found.")
     snapshot = build_export_snapshot(session, engagement_id)
     if snapshot.engagement.data_lifecycle_status != "active":
         raise DataLifecycleError("Exports cannot start after deletion has started.")
@@ -350,7 +372,11 @@ def _prepare_deletion(
             permission="owner",
             sanitized_data_allowed=sanitized_data_allowed,
         )
-        engagement = session.get_one(Engagement, engagement_id)
+        engagement = session.scalar(
+            select(Engagement).where(Engagement.id == engagement_id).with_for_update()
+        )
+        if engagement is None:
+            raise DataLifecycleError("Engagement not found.")
         if confirmation_name != engagement.name:
             raise DataLifecycleError(
                 "The deletion confirmation does not match the engagement name."
@@ -536,10 +562,13 @@ def _records_for_model(
 
 def _model_record(instance: Any) -> dict[str, Any]:
     mapper = inspect(instance).mapper
-    return {
+    record = {
         attribute.key: _json_value(getattr(instance, attribute.key))
         for attribute in mapper.column_attrs
     }
+    if isinstance(instance, PackageRetrievalGrant):
+        record.pop("token_digest", None)
+    return record
 
 
 def _count_model_rows(session: Session, model: type[Any], engagement_id: UUID) -> int:

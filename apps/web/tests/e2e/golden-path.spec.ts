@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const acceptedClaims = [
@@ -31,7 +32,7 @@ async function reviewClaim(
   await expect(heading).toBeHidden();
 }
 
-test("synthetic Acme reaches an approved implementation packet", async ({
+test("synthetic Acme reaches a governed Mission Control draft preview", async ({
   page,
 }, testInfo) => {
   test.setTimeout(150_000);
@@ -185,6 +186,66 @@ test("synthetic Acme reaches an approved implementation packet", async ({
   );
   await expect(implementationSpec).toContainText("annual_net_benefit");
   await expect(implementationSpec).toContainText("No production deployment");
+
+  await page.getByRole("button", { name: "Approve customer model v1" }).click();
+  await expect(
+    page.getByText("Customer Factory Model v1 was approved"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Assess opportunity" }).click();
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Dependency modernization" }),
+  ).toBeVisible();
+  await expect(page.getByText("factory-opportunity-rubric/v1")).toBeVisible();
+  await page.getByRole("button", { name: "Select factory line" }).click();
+  await expect(page.getByText(/Human-selected/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Assess seven stages" }).click();
+  await expect(page.getByText("DISCOVER", { exact: true })).toBeVisible();
+  await expect(page.getByText("IMPROVE", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Approve readiness" }).click();
+  await expect(
+    page.getByText("Final READY assessment was approved"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Generate package draft" }).click();
+  const packageHeading = page.getByRole("heading", {
+    level: 3,
+    name: "Dependency modernization · Acme Manufacturing",
+  });
+  await expect(packageHeading).toBeVisible();
+  const packageReview = page.getByRole("article").filter({
+    has: packageHeading,
+  });
+  await expect(
+    page.getByText("Exact source versions", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Authority & verification", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Acceptance, risk & provenance", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Send to review" }).click();
+  await page.getByRole("button", { name: "Approve & bind digest" }).click();
+  await expect(packageReview.getByText(/^sha256:[a-f0-9]{64}$/)).toBeVisible();
+  await page.getByRole("button", { name: "Publish immutable v1" }).click();
+  await expect(page.getByText("PUBLISHED", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Simulate safe retrieval" }).click();
+  await expect(page.getByText("Governed draft preview ready")).toBeVisible();
+  await expect(
+    page.getByText(/zero API requests/i, { exact: false }),
+  ).toBeVisible();
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    accessibility.violations,
+    JSON.stringify(accessibility.violations, null, 2),
+  ).toEqual([]);
 
   const screenshotPath =
     process.env.AI_FDE_DEMO_SCREENSHOT ??

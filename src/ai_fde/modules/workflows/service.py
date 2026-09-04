@@ -99,7 +99,7 @@ def generate_current_workflow(
         )
 
     _stale_workflows(session, engagement_id, "current")
-    stale_after_current_workflow_change(session, engagement_id)
+    stale_after_current_workflow_change(session, engagement_id, actor_id=operator.id)
     workflow = WorkflowVersion(
         engagement_id=engagement_id,
         workflow_kind="current",
@@ -161,7 +161,7 @@ def generate_target_workflow(
         return existing
 
     _stale_workflows(session, engagement_id, "target")
-    stale_after_target_workflow_change(session, engagement_id)
+    stale_after_target_workflow_change(session, engagement_id, actor_id=operator.id)
     workflow = WorkflowVersion(
         engagement_id=engagement_id,
         workflow_kind="target",
@@ -289,7 +289,7 @@ def approve_workflow(
             raise WorkflowStageGateError(
                 "Resolve blocking contradictions or record an explicit approval override reason."
             )
-        stale_after_current_workflow_change(session, engagement_id)
+        stale_after_current_workflow_change(session, engagement_id, actor_id=operator.id)
         next_stage = "map"
     else:
         source = session.get(WorkflowVersion, workflow.source_workflow_id)
@@ -305,7 +305,7 @@ def approve_workflow(
                     f"{step.name} needs a rationale and at least one control before AI "
                     "allocation approval."
                 )
-        stale_after_target_workflow_change(session, engagement_id)
+        stale_after_target_workflow_change(session, engagement_id, actor_id=operator.id)
         next_stage = "design"
 
     workflow.status = "approved"

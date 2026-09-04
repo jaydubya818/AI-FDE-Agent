@@ -1,6 +1,6 @@
 ---
 title: Factory Engineer target domain model
-status: proposed
+status: target-model-with-v1-subset-implemented
 date: 2026-09-04
 ---
 
@@ -302,13 +302,15 @@ Use for claim verification, opportunity selection, human/agent allocation, auton
 
 `FactoryDeploymentPackage` is the stable identity; `FactoryDeploymentPackageVersion` is immutable.
 
-States:
+Implemented V1 states:
 
-`DRAFT → GATE_BLOCKED | READY → IN_REVIEW → APPROVED → EXPORTED → SUPERSEDED`
+`DRAFT → READY_FOR_REVIEW → APPROVED → PUBLISHED → SUPERSEDED`, with terminal/exception paths `REJECTED`, `REVOKED`, and `STALE`.
 
-Freshness remains `CURRENT | STALE`. Mission Control acceptance/rejection belongs to `MissionControlLink.handoff_status`, not package lifecycle. An approved package is never edited. Regeneration, rejection response, changed upstream evidence, or changed policy creates a new version and approval.
+Mission Control acceptance/rejection belongs to its import receipt and governed Mission/Plan states, not the package lifecycle. An approved or published package is never edited. Regeneration or changed upstream truth creates a new version and approval. Material invalidation marks the dependent version stale; a published package may be explicitly revoked.
 
-The version pins customer-model, current workflow, target workflow, factory design, readiness, economics, acceptance criteria, verification, decision, and seven-artifact versions. It carries a canonical digest and the contract in [mission-control-integration-contract.md](mission-control-integration-contract.md).
+The V1 version pins the customer model, approved current/target workflows, selected opportunity, final readiness, target, approval, acceptance/verification graph, and bounded deployment intent. Economics and artifact decisions are represented through exact digest-bearing source/provenance references inside that intent rather than by leaking database implementation details. It carries the canonical digest and envelope specified in [mission-control-integration-contract.md](mission-control-integration-contract.md).
+
+V1 persists Customer Factory Model, readiness, opportunity, deployment-package, retrieval-grant, and retrieval-event records under the existing engagement boundary. Broader target aggregates in this document—stable claim/version separation, standalone Factory Line/Design, generalized DecisionRecord, outcome projections, and reusable field signals—remain future additive work and must not be described as implemented.
 
 ## Mission Control link and projection
 

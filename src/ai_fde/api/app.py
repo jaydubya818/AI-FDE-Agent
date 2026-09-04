@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from ai_fde.adapters.storage import S3EvidenceStore
+from ai_fde.api.factory_engineer_routes import router as factory_engineer_router
 from ai_fde.api.routes import router
 from ai_fde.api.upload_limits import EvidenceUploadLimitMiddleware
 from ai_fde.config import get_settings
@@ -46,4 +47,5 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type"],
     )
     app.include_router(router, prefix="/api")
+    app.include_router(factory_engineer_router, prefix="/api")
     return app

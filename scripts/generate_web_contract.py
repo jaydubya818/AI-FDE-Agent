@@ -15,6 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from ai_fde.adapters.extraction import PREDICATES
+from ai_fde.api.factory_engineer_schemas import (
+    CustomerFactoryModelResponse,
+    DeploymentPackageResponse,
+    FactoryHandoffWorkspaceResponse,
+    FactoryOpportunityResponse,
+    FDLCReadinessAssessmentResponse,
+    PackageRetrievalEventResponse,
+)
 from ai_fde.api.schemas import (
     AssertionResponse,
     ClaimResponse,
@@ -52,6 +60,14 @@ from ai_fde.models import (
     WorkflowStep,
     WorkflowVersion,
 )
+from ai_fde.modules.factory_engineer.models import (
+    CustomerFactoryModelVersion,
+    FactoryDeploymentPackageVersion,
+    FactoryOpportunity,
+    FDLCReadinessAssessment,
+    PackageRetrievalEvent,
+)
+from ai_fde.modules.factory_engineer.schemas import FDLCStage, ReadinessStatus
 
 OUTPUT = ROOT / "apps/web/lib/backend-contract.generated.ts"
 
@@ -59,6 +75,8 @@ RESPONSE_MODELS: dict[str, type[BaseModel]] = {
     "assertion": AssertionResponse,
     "claim": ClaimResponse,
     "contradiction": ContradictionResponse,
+    "customerFactoryModel": CustomerFactoryModelResponse,
+    "deploymentPackage": DeploymentPackageResponse,
     "deliveryScorecard": DeliveryScorecardResponse,
     "economicCase": EconomicCaseResponse,
     "engagement": EngagementResponse,
@@ -68,9 +86,13 @@ RESPONSE_MODELS: dict[str, type[BaseModel]] = {
     "engagementWorkspace": EngagementWorkspaceResponse,
     "entity": EntityResponse,
     "evidence": EvidenceResponse,
+    "factoryHandoffWorkspace": FactoryHandoffWorkspaceResponse,
+    "factoryOpportunity": FactoryOpportunityResponse,
+    "fdlcReadinessAssessment": FDLCReadinessAssessmentResponse,
     "implementationArtifact": ImplementationArtifactResponse,
     "internalAlphaScorecard": InternalAlphaScorecardResponse,
     "operatingModel": OperatingModelResponse,
+    "packageRetrievalEvent": PackageRetrievalEventResponse,
     "provenance": ProvenanceResponse,
     "workflow": WorkflowResponse,
     "workflowStep": WorkflowStepResponse,
@@ -118,6 +140,8 @@ def contract() -> dict[str, object]:
             ContradictionResolveRequest, "resolution_type"
         ),
         "contradictionStatus": _check_values(Contradiction, "status"),
+        "customerFactoryModelStatus": _check_values(CustomerFactoryModelVersion, "status"),
+        "deploymentPackageStatus": _check_values(FactoryDeploymentPackageVersion, "status"),
         "economicCaseStatus": _check_values(EconomicCase, "status"),
         "engagementDataClassification": _check_values(Engagement, "data_classification"),
         "engagementDataLifecycleStatus": _check_values(
@@ -127,9 +151,14 @@ def contract() -> dict[str, object]:
         "entityType": _check_values(OperatingEntity, "entity_type"),
         "evidenceSourceType": _check_values(EvidenceAsset, "source_type"),
         "evidenceStatus": _check_values(EvidenceAsset, "status"),
+        "factoryOpportunityStatus": _check_values(FactoryOpportunity, "status"),
+        "fdlcReadinessAssessmentStatus": _check_values(FDLCReadinessAssessment, "status"),
+        "fdlcReadinessStage": [item.value for item in FDLCStage],
+        "fdlcReadinessStatus": [item.value for item in ReadinessStatus],
         "artifactStatus": _check_values(ImplementationArtifact, "status"),
         "artifactType": _check_values(ImplementationArtifact, "artifact_type"),
         "operatorAuthMode": _settings_literal("auth_mode"),
+        "packageRetrievalResult": _check_values(PackageRetrievalEvent, "result"),
         "deletionReceiptDataClassification": _check_values(
             EngagementDeletionReceipt, "data_classification"
         ),

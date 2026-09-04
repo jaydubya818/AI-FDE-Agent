@@ -15,6 +15,7 @@ from ai_fde.models import (
     WorkflowStep,
     WorkflowVersion,
 )
+from ai_fde.modules.lifecycle import stale_after_artifact_change
 from ai_fde.modules.operating_model.service import list_verified_assertions
 from ai_fde.modules.shared import publish_domain_event, record_audit
 from ai_fde.modules.workflows.service import list_workflow_steps
@@ -149,6 +150,7 @@ def generate_implementation_packet(
         )
         .values(status="stale")
     )
+    stale_after_artifact_change(session, engagement_id, actor_id=operator.id)
 
     source_assertion_ids = [str(item["id"]) for item in assertions]
     artifacts = []

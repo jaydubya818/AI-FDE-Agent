@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ai_fde.models import Contradiction, Operator
+from ai_fde.modules.factory_engineer.service import stale_all_customer_models
 from ai_fde.modules.shared import publish_domain_event, record_audit
 
 
@@ -70,6 +71,12 @@ def resolve_contradiction(
     contradiction.blocking = False
     contradiction.resolved_by_id = operator.id
     contradiction.resolved_at = datetime.now(UTC)
+    stale_all_customer_models(
+        session,
+        engagement_id=engagement_id,
+        reason="A material contradiction resolution changed the verified customer truth basis.",
+        actor_id=operator.id,
+    )
     record_audit(
         session,
         engagement_id=engagement_id,

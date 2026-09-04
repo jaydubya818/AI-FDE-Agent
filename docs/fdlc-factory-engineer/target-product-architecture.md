@@ -1,6 +1,6 @@
 ---
 title: FDLC Factory Engineer target product architecture
-status: proposed
+status: evolving-implemented-v1
 date: 2026-09-04
 ---
 
@@ -203,7 +203,23 @@ Effective autonomy is the lowest applicable factory, mission, WorkOrder, policy,
 
 The first product posture is broad authorized read, recommendation, and narrowly scoped configuration. Execution invocation is through Mission Control. Publication and production remain absent unless explicitly granted downstream. Promotion is human and evidence-backed; automatic demotion/quarantine may be policy driven.
 
-This is a proposed architecture decision and should be recorded as an ADR before its schema is implemented.
+The L0–L5 vocabulary and authority split are accepted product constraints. Phase 2 implements only preparation, recommendation, human approval, and authenticated package retrieval. Mission Control remains the sole execution authority; higher autonomy is future work and requires separate policy, qualification, and rollout decisions.
+
+## Phase 2 implementation status
+
+The feature branch now implements the first trusted vertical slice inside the existing modular monolith:
+
+- versioned Customer Factory Model with typed provenance and conservative staleness;
+- explainable seven-stage FDLC readiness;
+- deterministic opportunity scoring and explicit human selection;
+- immutable, digest-bound Factory Deployment Package lifecycle;
+- scoped, revocable, audited published-only retrieval;
+- Mission Control validation and draft-only import on its own feature branch;
+- deterministic browser-local hosted-demo proof.
+
+The implementation is intentionally consolidated under `modules/factory_engineer/` for V1 rather than prematurely splitting every logical aggregate into packages or services. Existing workflow, economics, artifact, lifecycle, and data-lifecycle services provide dependency hooks. The longer module list above remains the direction for extracting bounded modules only when their responsibilities grow.
+
+Not production-complete: enterprise workload identity, automatic credential rotation, deployed bidirectional outcome projection, connector fleet management, waiver governance, generalized reusable capability publication, and autonomous production execution.
 
 ## Readiness and opportunity assessment
 
@@ -223,9 +239,10 @@ A composite score can be added only after customer evidence validates its useful
 
 For each selected opportunity, Factory Engineer may compare the evidence-backed customer workflow against a versioned reusable template such as modernization, security remediation, test engineering, code review, migration, or documentation. The assessment records template version, fit rationale, mismatches, required customization, required validation, and customer-specific extensions that must remain local. A template accelerates design; it never overrides customer evidence or implies that its agents/tools/MCP servers are available or authorized.
 
-## API evolution
+## Target API evolution
 
-Preserve current `/api/engagements/{id}/...` routes. Add resources incrementally:
+This is the future resource vocabulary, not the current Phase 2 route contract. Preserve current
+`/api/engagements/{id}/...` routes and add or normalize resources incrementally:
 
 ```text
 /engagements/{id}/source-evidence
@@ -246,7 +263,11 @@ Preserve current `/api/engagements/{id}/...` routes. Add resources incrementally
 /capability-candidates
 ```
 
-Rules:
+The implemented Phase 2 routes currently use `factory-opportunities` and `fdlc-readiness`. Their
+writes serialize on the engagement aggregate and revalidate state server-side; they do not yet
+expose client-supplied expected versions or ETags.
+
+Target rules:
 
 - Existing evidence/operating-model/artifact routes remain compatibility views until clients migrate.
 - Portable objects carry a namespaced schema string and immutable digest.

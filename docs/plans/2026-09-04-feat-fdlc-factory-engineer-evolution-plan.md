@@ -181,6 +181,29 @@ Acceptance criteria:
 
 Rollback: new tables/views are additive. Disable new endpoints/UI and retain old projections; do not destructively down-migrate approved customer records.
 
+#### Phase 2 trusted-handoff release slice (2026-09-04)
+
+The authorized Phase 2 brief deliberately implements a launchable vertical slice across several later target phases without claiming the entire long-range model above is complete.
+
+Implemented in this slice:
+
+- [x] Additive versioned Customer Factory Model snapshots with typed evidence/verified-claim/approved-input/assumption provenance.
+- [x] Conservative stale-on-material-change hooks while preserving the existing operating-model projection.
+- [x] Explainable deterministic opportunity portfolio with modernization, test-remediation, and security-remediation fixtures plus one human-selected line.
+- [x] Seven-stage evidence/blocker/next-action readiness with final readiness pinned to the selected opportunity.
+- [x] Explicit immutable package state machine, server-bound issuer, exact source/approval binding, and `fdlc-canonical-json/v1` SHA-256 digest.
+- [x] Scoped, expiring, revocable, published-only service retrieval with RLS and audit events.
+- [x] Mission Control retrieval/validation/preview/import adapter that creates only governed Mission/Plan drafts and preserves local feature/spec gates.
+- [x] Browser-local synthetic proof flow with zero live API or Mission Control calls.
+
+Deliberately deferred from the broader target plan:
+
+- stable `SourceEvidence`/`Claim` identity split and generalized ClaimVersion/Unknown/Assumption/DecisionRecord aggregates;
+- selective dependency graph, formal waiver aggregate, and standalone FactoryLine/FactoryDesign aggregates;
+- production identity federation/workload identity, automatic secret rotation, connector platform, outcome synchronization, and reusable capability publication.
+
+Release rule: Phase 2 may ship only when both repositories pass their current migration/static/test suites, the shared package fixture/digest agree cross-language, the hosted golden-path and accessibility scripts pass with zero network calls, and the exact commits are pushed before deployment.
+
 ### Phase 3 — Structured discovery and read-only connectors
 
 Goal: acquire a more accurate customer model without creating a write-capable integration surface.

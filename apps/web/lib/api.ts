@@ -10,12 +10,18 @@ import type {
   EconomicCase,
   Evidence,
   EvidenceClassification,
+  FactoryHandoffWorkspace,
+  FactoryOpportunity,
+  FDLCReadinessAssessment,
   ImplementationArtifact,
   InternalAlphaScorecard,
   OperatingModel,
   Workflow,
   WorkflowStep,
   WorkflowWorkspace,
+  CustomerFactoryModel,
+  DeploymentPackage,
+  PackageRetrievalEvent,
 } from "./types";
 import type { BackendEnum } from "./backend-contract.generated";
 import {
@@ -395,5 +401,112 @@ export function generateImplementationPacket(
     {
       method: "POST",
     },
+  );
+}
+
+export function getFactoryHandoffWorkspace(
+  engagementId: string,
+): Promise<FactoryHandoffWorkspace> {
+  return request(`/engagements/${engagementId}/factory-handoff`);
+}
+
+export function approveSyntheticCustomerModel(
+  engagementId: string,
+): Promise<CustomerFactoryModel> {
+  return request(
+    `/engagements/${engagementId}/customer-factory-models/bootstrap`,
+    { method: "POST" },
+  );
+}
+
+export function assessSyntheticFactoryOpportunity(
+  engagementId: string,
+): Promise<FactoryOpportunity> {
+  return request(
+    `/engagements/${engagementId}/factory-opportunities/bootstrap`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function selectFactoryOpportunity(
+  engagementId: string,
+  opportunityId: string,
+  reason: string,
+): Promise<FactoryOpportunity> {
+  return request(
+    `/engagements/${engagementId}/factory-opportunities/${opportunityId}/select`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export function assessSyntheticReadiness(
+  engagementId: string,
+): Promise<FDLCReadinessAssessment> {
+  return request(`/engagements/${engagementId}/fdlc-readiness/bootstrap`, {
+    method: "POST",
+  });
+}
+
+export function approveReadiness(
+  engagementId: string,
+  assessmentId: string,
+): Promise<FDLCReadinessAssessment> {
+  return request(
+    `/engagements/${engagementId}/fdlc-readiness/${assessmentId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function generateSyntheticDeploymentPackage(
+  engagementId: string,
+): Promise<DeploymentPackage> {
+  return request(`/engagements/${engagementId}/deployment-packages/bootstrap`, {
+    method: "POST",
+  });
+}
+
+export function submitDeploymentPackage(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<DeploymentPackage> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/review`,
+    { method: "POST" },
+  );
+}
+
+export function approveDeploymentPackage(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<DeploymentPackage> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function publishDeploymentPackage(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<DeploymentPackage> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/publish`,
+    { method: "POST" },
+  );
+}
+
+export function simulateMissionControlRetrieval(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<PackageRetrievalEvent> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/simulate-retrieval`,
+    { method: "POST" },
   );
 }
