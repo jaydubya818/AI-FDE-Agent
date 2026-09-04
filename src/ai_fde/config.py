@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     )
     sanitized_data_enabled: bool = False
     deployment_validation_id: str | None = None
+    factory_engineer_issuer_id: str = Field(
+        default="factory-engineer",
+        min_length=1,
+        max_length=255,
+    )
     worker_poll_seconds: float = 1.0
     worker_lease_seconds: int = Field(default=300, ge=30, le=1800)
 

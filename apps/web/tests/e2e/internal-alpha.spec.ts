@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 type Profile = {
   company: string;
   workflow: string;
+  opportunity: string;
   accepted: string[];
   rejected: string[];
   contradiction?: string;
@@ -12,6 +13,7 @@ const profiles: Profile[] = [
   {
     company: "Acme Manufacturing",
     workflow: "Accounts Payable",
+    opportunity: "Dependency modernization",
     accepted: [
       "Exception: Strategic vendors with an approved annual contract may be approved by Controller.",
       "Sarah Jones owns Accounts Payable.",
@@ -28,6 +30,7 @@ const profiles: Profile[] = [
   {
     company: "Northstar Health",
     workflow: "Employee Access Onboarding",
+    opportunity: "Security remediation",
     accepted: [
       "Priya Shah owns Employee Access Onboarding.",
       "Employee Access Onboarding uses Workday.",
@@ -49,6 +52,7 @@ const profiles: Profile[] = [
   {
     company: "Beacon Logistics",
     workflow: "Customer Support Triage",
+    opportunity: "Test remediation",
     accepted: [
       "Jordan Lee owns Customer Support Triage.",
       "Customer Support Triage uses Zendesk.",
@@ -145,6 +149,13 @@ async function completeProfile(page: Page, profile: Profile) {
   await expect(
     page.getByText("Packet complete", { exact: true }),
   ).toBeVisible();
+
+  await page.getByRole("button", { name: "Approve customer model v1" }).click();
+  await page.getByRole("button", { name: "Assess opportunity" }).click();
+  await expect(
+    page.getByRole("heading", { level: 3, name: profile.opportunity }),
+  ).toBeVisible();
+  await expect(page.getByText("factory-opportunity-rubric/v1")).toBeVisible();
 
   await page.getByRole("button", { name: "Record assessment" }).click();
   await expect(page.getByText(/Assessment saved/)).toBeVisible();

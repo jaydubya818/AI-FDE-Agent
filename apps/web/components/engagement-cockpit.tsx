@@ -15,6 +15,7 @@ import { Brand } from "@/components/brand";
 import { EcosystemLinks } from "@/components/ecosystem-links";
 import { DataLifecycleWorkspace } from "@/components/data-lifecycle-workspace";
 import { DeliveryEvaluationWorkspace } from "@/components/delivery-evaluation-workspace";
+import { FactoryHandoffWorkspace } from "@/components/factory-handoff-workspace";
 import {
   CheckIcon,
   FileIcon,
@@ -102,14 +103,38 @@ const stages = [
     detail: "Engineering handoff",
   },
   {
-    id: "evaluation",
+    id: "factory-opportunities",
     number: "08",
+    label: "Factory opportunities",
+    detail: "Rank & select",
+  },
+  {
+    id: "fdlc-readiness",
+    number: "09",
+    label: "FDLC readiness",
+    detail: "Explainable gates",
+  },
+  {
+    id: "deployment-package",
+    number: "10",
+    label: "Deployment package",
+    detail: "Approved intent",
+  },
+  {
+    id: "mission-control-handoff",
+    number: "11",
+    label: "Mission Control",
+    detail: "Governed handoff",
+  },
+  {
+    id: "evaluation",
+    number: "12",
     label: "Delivery proof",
     detail: "Outcomes & efficiency",
   },
   {
     id: "data-lifecycle",
-    number: "09",
+    number: "13",
     label: "Data lifecycle",
     detail: "Export & deletion",
   },
@@ -188,6 +213,13 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     economics: false,
     specification: false,
   });
+  const [handoffProgress, setHandoffProgress] = useState({
+    customerModel: false,
+    opportunity: false,
+    readiness: false,
+    package: false,
+    handoff: false,
+  });
   const fileInput = useRef<HTMLInputElement>(null);
   const noteToggle = useRef<HTMLButtonElement>(null);
   const noteTitle = useRef<HTMLInputElement>(null);
@@ -201,6 +233,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   );
   const handleAssessmentReady = useCallback(
     (ready: boolean) => setAssessmentReady(ready),
+    [],
+  );
+  const handleHandoffProgress = useCallback(
+    (progress: typeof handoffProgress) => setHandoffProgress(progress),
     [],
   );
 
@@ -464,7 +500,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
           </span>
         </div>
 
-        <nav aria-label="Engagement stages" className="mt-7 grid gap-1">
+        <nav
+          aria-label="Engagement stages"
+          className="mt-7 grid min-h-0 flex-1 gap-1 overflow-y-auto pr-1"
+        >
           {stages.map((stage, index) => {
             const complete =
               index === 0
@@ -481,9 +520,17 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                           ? lifecycleProgress.economics
                           : stage.id === "specification"
                             ? lifecycleProgress.specification
-                            : stage.id === "evaluation"
-                              ? assessmentReady
-                              : dataLifecycleReady;
+                            : stage.id === "factory-opportunities"
+                              ? handoffProgress.opportunity
+                              : stage.id === "fdlc-readiness"
+                                ? handoffProgress.readiness
+                                : stage.id === "deployment-package"
+                                  ? handoffProgress.package
+                                  : stage.id === "mission-control-handoff"
+                                    ? handoffProgress.handoff
+                                    : stage.id === "evaluation"
+                                      ? assessmentReady
+                                      : dataLifecycleReady;
             return (
               <a
                 aria-label={`${stage.number}. ${stage.label}: ${stage.detail}, ${complete ? "complete" : "incomplete"}`}
@@ -905,6 +952,16 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             onProgress={handleLifecycleProgress}
           />
 
+          <FactoryHandoffWorkspace
+            engagementId={engagementId}
+            lifecycleVersion={JSON.stringify(lifecycleProgress)}
+            onProgress={handleHandoffProgress}
+            synthetic={
+              hostedDemoEnabled &&
+              engagement.data_classification === "synthetic"
+            }
+          />
+
           <DeliveryEvaluationWorkspace
             engagementId={engagementId}
             lifecycleVersion={JSON.stringify(lifecycleProgress)}
@@ -922,12 +979,15 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
               V1 boundary
             </p>
             <p className="display-font mt-3 text-2xl font-medium">
-              The lifecycle stops at an implementation-ready artifact packet.
+              The lifecycle stops at approved intent and a governed draft
+              handoff.
             </p>
             <p className="mt-3 max-w-3xl text-xs leading-5 text-white/60">
-              Coding-agent dispatch and autonomous remediation remain post-V1.
-              Production and sanitized data remain gated until live tenant and
-              deployment validation succeeds.
+              Factory Engineer never dispatches coding agents or treats source
+              evidence as execution proof. Mission Control independently owns
+              Plan approval, WorkOrders, Attempts, verification, acceptance,
+              release, and deployment. Production and sanitized data remain
+              gated until live tenant and deployment validation succeeds.
             </p>
           </section>
         </div>

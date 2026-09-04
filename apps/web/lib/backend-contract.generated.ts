@@ -71,6 +71,11 @@ export const BACKEND_CONTRACT = {
       "accepted_exception",
       "not_a_conflict"
     ],
+    "customerFactoryModelStatus": [
+      "DRAFT",
+      "APPROVED",
+      "STALE"
+    ],
     "deletionReceiptDataClassification": [
       "synthetic",
       "sanitized"
@@ -79,6 +84,16 @@ export const BACKEND_CONTRACT = {
       "processing",
       "completed",
       "failed"
+    ],
+    "deploymentPackageStatus": [
+      "DRAFT",
+      "READY_FOR_REVIEW",
+      "APPROVED",
+      "PUBLISHED",
+      "SUPERSEDED",
+      "REJECTED",
+      "REVOKED",
+      "STALE"
     ],
     "economicCaseStatus": [
       "draft",
@@ -128,9 +143,48 @@ export const BACKEND_CONTRACT = {
       "failed",
       "complete"
     ],
+    "factoryOpportunityStatus": [
+      "CANDIDATE",
+      "ASSESSED",
+      "RECOMMENDED",
+      "SELECTED",
+      "REJECTED",
+      "STALE"
+    ],
+    "fdlcReadinessAssessmentStatus": [
+      "DRAFT",
+      "APPROVED",
+      "STALE"
+    ],
+    "fdlcReadinessStage": [
+      "DISCOVER",
+      "DESIGN",
+      "ASSEMBLE",
+      "VALIDATE",
+      "DEPLOY",
+      "OPERATE",
+      "IMPROVE"
+    ],
+    "fdlcReadinessStatus": [
+      "NOT_STARTED",
+      "IN_PROGRESS",
+      "BLOCKED",
+      "READY",
+      "CONDITIONALLY_READY",
+      "NOT_READY",
+      "STALE"
+    ],
     "operatorAuthMode": [
       "development",
       "oidc"
+    ],
+    "packageRetrievalResult": [
+      "RETRIEVED",
+      "DENIED_NOT_PUBLISHED",
+      "DENIED_STALE",
+      "DENIED_REVOKED",
+      "DENIED_INTEGRITY",
+      "NOT_FOUND"
     ],
     "workflowAllocation": [
       "human",
@@ -200,6 +254,30 @@ export const BACKEND_CONTRACT = {
       "resolved_at",
       "created_at"
     ],
+    "customerFactoryModel": [
+      "id",
+      "engagement_id",
+      "version_number",
+      "status",
+      "organization",
+      "systems",
+      "repositories",
+      "environments",
+      "workflows",
+      "policies",
+      "authority_boundaries",
+      "constraints",
+      "risks",
+      "baselines",
+      "evidence_refs",
+      "verified_claim_refs",
+      "assumption_refs",
+      "factory_opportunity_refs",
+      "content_digest",
+      "approved_at",
+      "stale_reason",
+      "created_at"
+    ],
     "deliveryScorecard": [
       "engagement",
       "milestones",
@@ -208,6 +286,25 @@ export const BACKEND_CONTRACT = {
       "packet",
       "provider",
       "assessments"
+    ],
+    "deploymentPackage": [
+      "id",
+      "engagement_id",
+      "package_id",
+      "package_version",
+      "schema_version",
+      "status",
+      "issuer",
+      "source",
+      "target",
+      "deployment_intent",
+      "digest",
+      "approval",
+      "issued_at",
+      "approved_at",
+      "published_at",
+      "state_reason",
+      "created_at"
     ],
     "economicCase": [
       "id",
@@ -301,6 +398,64 @@ export const BACKEND_CONTRACT = {
       "error_message",
       "created_at"
     ],
+    "factoryHandoffWorkspace": [
+      "customer_model",
+      "opportunities",
+      "readiness",
+      "packages",
+      "latest_retrieval"
+    ],
+    "factoryOpportunity": [
+      "id",
+      "engagement_id",
+      "opportunity_key",
+      "version_number",
+      "status",
+      "name",
+      "description",
+      "source_workflow_ref",
+      "customer_factory_model_id",
+      "customer_factory_model_version",
+      "value_score",
+      "verifiability_score",
+      "readiness_score",
+      "risk_score",
+      "autonomy_potential",
+      "priority_score",
+      "factors",
+      "rubric",
+      "rubric_version",
+      "economics_ref",
+      "evidence_refs",
+      "rationale",
+      "blockers",
+      "recommendation",
+      "content_digest",
+      "selection_reason",
+      "selected_at",
+      "rejection_reason",
+      "rejected_at",
+      "stale_reason",
+      "created_at"
+    ],
+    "fdlcReadinessAssessment": [
+      "id",
+      "engagement_id",
+      "version_number",
+      "status",
+      "overall_status",
+      "customer_factory_model_id",
+      "customer_factory_model_version",
+      "selected_opportunity_id",
+      "selected_opportunity_version",
+      "current_workflow_ref",
+      "target_workflow_ref",
+      "stages",
+      "content_digest",
+      "approved_at",
+      "stale_reason",
+      "created_at"
+    ],
     "implementationArtifact": [
       "id",
       "artifact_type",
@@ -328,6 +483,18 @@ export const BACKEND_CONTRACT = {
     "operatingModel": [
       "entities",
       "assertions"
+    ],
+    "packageRetrievalEvent": [
+      "id",
+      "engagement_id",
+      "package_id",
+      "package_version",
+      "requester_identity",
+      "requester_system",
+      "result",
+      "digest",
+      "correlation_id",
+      "created_at"
     ],
     "provenance": [
       "claim_evidence_id",

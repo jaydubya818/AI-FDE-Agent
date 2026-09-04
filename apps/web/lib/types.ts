@@ -345,12 +345,282 @@ export type InternalAlphaScorecard = {
   };
 };
 
+export type FactorySourceReference = {
+  kind: "EVIDENCE" | "VERIFIED_CLAIM" | "APPROVED_INPUT" | "ASSUMPTION";
+  ref: string;
+  version: number | null;
+  sha256: string;
+};
+
+export type CustomerFactoryModel = {
+  id: string;
+  engagement_id: string;
+  version_number: number;
+  status: BackendEnum<"customerFactoryModelStatus">;
+  organization: {
+    key: string;
+    label: string;
+    description: string;
+    provenance_refs: FactorySourceReference[];
+    attributes: Record<string, unknown>;
+  };
+  systems: Array<Record<string, unknown>>;
+  repositories: Array<Record<string, unknown>>;
+  environments: Array<Record<string, unknown>>;
+  workflows: Array<Record<string, unknown>>;
+  policies: Array<Record<string, unknown>>;
+  authority_boundaries: Array<Record<string, unknown>>;
+  constraints: Array<Record<string, unknown>>;
+  risks: Array<Record<string, unknown>>;
+  baselines: Array<Record<string, unknown>>;
+  evidence_refs: FactorySourceReference[];
+  verified_claim_refs: FactorySourceReference[];
+  assumption_refs: FactorySourceReference[];
+  factory_opportunity_refs: FactorySourceReference[];
+  content_digest: string;
+  approved_at: string | null;
+  stale_reason: string | null;
+  created_at: string;
+};
+
+export type FactoryOpportunity = {
+  id: string;
+  engagement_id: string;
+  opportunity_key: string;
+  version_number: number;
+  status: BackendEnum<"factoryOpportunityStatus">;
+  name: string;
+  description: string;
+  source_workflow_ref: { id: string; version: number; digest: string };
+  customer_factory_model_id: string;
+  customer_factory_model_version: number;
+  value_score: number;
+  verifiability_score: number;
+  readiness_score: number;
+  risk_score: number;
+  autonomy_potential: number;
+  priority_score: number;
+  factors: Record<string, number>;
+  rubric: Record<string, Record<string, number>>;
+  rubric_version: string;
+  economics_ref: FactorySourceReference;
+  evidence_refs: FactorySourceReference[];
+  rationale: string[];
+  blockers: string[];
+  recommendation: string;
+  content_digest: string;
+  selection_reason: string | null;
+  selected_at: string | null;
+  rejection_reason: string | null;
+  rejected_at: string | null;
+  stale_reason: string | null;
+  created_at: string;
+};
+
+export type FDLCReadinessStage = {
+  stage: BackendEnum<"fdlcReadinessStage">;
+  status: BackendEnum<"fdlcReadinessStatus">;
+  score: number;
+  evidence_refs: FactorySourceReference[];
+  blockers: string[];
+  risks: string[];
+  decisions: FactorySourceReference[];
+  required_artifacts: string[];
+  owner: string | null;
+  next_actions: string[];
+  criteria: Array<{
+    key: string;
+    label: string;
+    satisfied: boolean;
+    blocking: boolean;
+    explanation: string;
+    basis_refs: FactorySourceReference[];
+    next_action: string | null;
+  }>;
+  explanation: string;
+  updated_at: string;
+};
+
+export type FDLCReadinessAssessment = {
+  id: string;
+  engagement_id: string;
+  version_number: number;
+  status: BackendEnum<"fdlcReadinessAssessmentStatus">;
+  overall_status: FDLCReadinessStage["status"];
+  customer_factory_model_id: string;
+  customer_factory_model_version: number;
+  selected_opportunity_id: string;
+  selected_opportunity_version: number;
+  current_workflow_ref: { id: string; version: number; digest: string };
+  target_workflow_ref: { id: string; version: number; digest: string };
+  stages: FDLCReadinessStage[];
+  content_digest: string;
+  approved_at: string | null;
+  stale_reason: string | null;
+  created_at: string;
+};
+
+export type FactoryContractRequirement = {
+  key: string;
+  statement: string;
+};
+
+export type FactoryPlanAssertion = {
+  assertion_id: string;
+  title: string;
+  outcome: string;
+  verification_method: "COMMAND" | "TEST" | "BROWSER" | "MANUAL" | "CHECKLIST";
+  pass_condition: string;
+  required_evidence: string;
+  requires_independent_validation: boolean;
+  waiver_allowed: boolean;
+};
+
+export type FactoryWorkOrderBlueprint = {
+  key: string;
+  title: string;
+  outcome: string;
+  requirements: string[];
+  acceptance_criterion_refs: string[];
+  constraints: string[];
+  requested_code_scopes: string[];
+  capability_requirement_refs: string[];
+  verification_requirement_refs: string[];
+  authority_boundary_refs: string[];
+  sequence: number;
+  execution_role: "WORKER" | "VALIDATOR";
+  is_mutating: boolean;
+  priority: 1 | 2 | 3 | 4;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  required_approvals: string[];
+  dependencies: string[];
+  assertion_ids: string[];
+};
+
+export type DeploymentPackage = {
+  id: string;
+  engagement_id: string;
+  package_id: string;
+  package_version: number;
+  schema_version: "fdlc.factory-deployment-package/v1";
+  status: BackendEnum<"deploymentPackageStatus">;
+  issuer: {
+    issuer_id: string;
+    issuer_type: "FDLC_FACTORY_ENGINEER";
+    environment: string;
+    authority_scope: "DEPLOYMENT_PACKAGE_PUBLISH";
+  };
+  source: {
+    customer_factory_model: { id: string; version: number; digest: string };
+    current_workflow: { id: string; version: number; digest: string };
+    target_workflow: { id: string; version: number; digest: string };
+    readiness_assessment: { id: string; version: number; digest: string };
+    factory_opportunity: { id: string; version: number; digest: string };
+  };
+  target: {
+    workspace_ref: string;
+    repository_ref: string;
+    requested_code_scopes: string[];
+    semantic_execution_workflow_ref: string;
+    environment_class: string;
+  };
+  deployment_intent: {
+    mission_title: string;
+    mission_context: string;
+    stop_condition: string;
+    plan_summary: string;
+    rollback_approach: string;
+    objective: string;
+    intent: string;
+    specification: string;
+    acceptance_criteria: Array<{
+      key: string;
+      statement: string;
+      verification_method: string;
+    }>;
+    constraints: FactoryContractRequirement[];
+    required_capabilities: FactoryContractRequirement[];
+    required_agents: FactoryContractRequirement[];
+    required_skills: FactoryContractRequirement[];
+    required_tools: FactoryContractRequirement[];
+    model_requirements: FactoryContractRequirement[];
+    context_requirements: FactoryContractRequirement[];
+    environment_requirements: FactoryContractRequirement[];
+    authority_boundaries: Array<{
+      key: string;
+      subject: string;
+      maximum_authority: string;
+      prohibited_actions: string[];
+    }>;
+    policy_requirements: FactoryContractRequirement[];
+    approval_requirements: FactoryContractRequirement[];
+    verification_contract: Array<{
+      key: string;
+      statement: string;
+      evidence_required: string[];
+      independent: boolean;
+    }>;
+    evaluation_requirements: FactoryContractRequirement[];
+    rollback_requirements: FactoryContractRequirement[];
+    observability_requirements: FactoryContractRequirement[];
+    risk_summary: Array<{ key: string; statement: string }>;
+    economics_baseline: Record<string, unknown>;
+    evidence_refs: FactorySourceReference[];
+    decision_refs: FactorySourceReference[];
+    provenance: FactorySourceReference[];
+    plan_assertions: FactoryPlanAssertion[];
+    work_order_blueprints: FactoryWorkOrderBlueprint[];
+  };
+  digest: string | null;
+  approval: {
+    decision_ref: FactorySourceReference;
+    approved_by: string;
+    authorized_by_ref: string;
+    authority_basis_ref: FactorySourceReference;
+    approved_at: string;
+  } | null;
+  issued_at: string | null;
+  approved_at: string | null;
+  published_at: string | null;
+  state_reason: string | null;
+  created_at: string;
+};
+
+export type PackageRetrievalEvent = {
+  id: string;
+  engagement_id: string;
+  package_id: string;
+  package_version: number;
+  requester_identity: string;
+  requester_system: string;
+  result: string;
+  digest: string | null;
+  correlation_id: string;
+  created_at: string;
+};
+
+export type FactoryHandoffWorkspace = {
+  customer_model: CustomerFactoryModel | null;
+  opportunities: FactoryOpportunity[];
+  readiness: FDLCReadinessAssessment | null;
+  packages: DeploymentPackage[];
+  latest_retrieval: PackageRetrievalEvent | null;
+};
+
 type AssertNoMissingBackendFields<Value extends Record<string, never>> = Value;
 
 export type BackendResponseContractParity = AssertNoMissingBackendFields<{
   assertion: MissingBackendFields<"assertion", Assertion>;
   claim: MissingBackendFields<"claim", Claim>;
   contradiction: MissingBackendFields<"contradiction", Contradiction>;
+  customerFactoryModel: MissingBackendFields<
+    "customerFactoryModel",
+    CustomerFactoryModel
+  >;
+  deploymentPackage: MissingBackendFields<
+    "deploymentPackage",
+    DeploymentPackage
+  >;
   deliveryScorecard: MissingBackendFields<
     "deliveryScorecard",
     DeliveryScorecard
@@ -375,6 +645,18 @@ export type BackendResponseContractParity = AssertNoMissingBackendFields<{
   >;
   entity: MissingBackendFields<"entity", Entity>;
   evidence: MissingBackendFields<"evidence", Evidence>;
+  factoryHandoffWorkspace: MissingBackendFields<
+    "factoryHandoffWorkspace",
+    FactoryHandoffWorkspace
+  >;
+  factoryOpportunity: MissingBackendFields<
+    "factoryOpportunity",
+    FactoryOpportunity
+  >;
+  fdlcReadinessAssessment: MissingBackendFields<
+    "fdlcReadinessAssessment",
+    FDLCReadinessAssessment
+  >;
   implementationArtifact: MissingBackendFields<
     "implementationArtifact",
     ImplementationArtifact
@@ -384,6 +666,10 @@ export type BackendResponseContractParity = AssertNoMissingBackendFields<{
     InternalAlphaScorecard
   >;
   operatingModel: MissingBackendFields<"operatingModel", OperatingModel>;
+  packageRetrievalEvent: MissingBackendFields<
+    "packageRetrievalEvent",
+    PackageRetrievalEvent
+  >;
   provenance: MissingBackendFields<"provenance", Provenance>;
   workflow: MissingBackendFields<"workflow", Workflow>;
   workflowStep: MissingBackendFields<"workflowStep", WorkflowStep>;
