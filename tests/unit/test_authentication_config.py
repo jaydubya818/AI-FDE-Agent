@@ -132,27 +132,29 @@ def _production_kwargs(**overrides: object) -> dict[str, object]:
 
 def test_production_requires_the_bedrock_extraction_provider() -> None:
     with pytest.raises(ValidationError, match="Production requires the Bedrock"):
-        Settings(**_production_kwargs(extraction_provider="deterministic"))
+        Settings.model_validate(_production_kwargs(extraction_provider="deterministic"))
 
 
 def test_bedrock_extraction_requires_a_model_identifier() -> None:
     with pytest.raises(ValidationError, match="requires AI_FDE_BEDROCK_MODEL_ID"):
-        Settings(**_production_kwargs(bedrock_model_id=None))
+        Settings.model_validate(_production_kwargs(bedrock_model_id=None))
 
 
 def test_production_requires_a_dedicated_worker_operator_identity() -> None:
     with pytest.raises(ValidationError, match="requires AI_FDE_WORKER_OPERATOR_ID"):
-        Settings(**_production_kwargs(worker_operator_id=None))
+        Settings.model_validate(_production_kwargs(worker_operator_id=None))
 
 
 def test_production_object_storage_requires_workload_identity() -> None:
     with pytest.raises(ValidationError, match="requires the ECS workload identity"):
-        Settings(**_production_kwargs(s3_use_workload_identity=False))
+        Settings.model_validate(_production_kwargs(s3_use_workload_identity=False))
 
 
 def test_production_object_storage_rejects_a_custom_endpoint() -> None:
     with pytest.raises(ValidationError, match="must use the regional AWS endpoint"):
-        Settings(**_production_kwargs(s3_endpoint_url="http://localhost:59000"))
+        Settings.model_validate(
+            _production_kwargs(s3_endpoint_url="http://localhost:59000")
+        )
 
 
 def test_sanitized_data_cannot_be_enabled_outside_production() -> None:
@@ -172,12 +174,14 @@ def test_sanitized_data_cannot_be_enabled_outside_production() -> None:
 
 def test_oidc_issuer_url_must_use_https() -> None:
     with pytest.raises(ValidationError, match="issuer URL must use HTTPS"):
-        Settings(**_production_kwargs(oidc_issuer_url="http://tenant.us.auth0.com/"))
+        Settings.model_validate(
+            _production_kwargs(oidc_issuer_url="http://tenant.us.auth0.com/")
+        )
 
 
 def test_oidc_allowed_emails_are_normalized_and_deduplicated() -> None:
-    settings = Settings(
-        **_production_kwargs(
+    settings = Settings.model_validate(
+        _production_kwargs(
             oidc_allowed_emails=["  FDE@Example.COM ", "fde@example.com", "second@example.com"]
         )
     )
@@ -187,19 +191,19 @@ def test_oidc_allowed_emails_are_normalized_and_deduplicated() -> None:
 
 def test_oidc_allowed_emails_that_normalize_to_nothing_are_rejected() -> None:
     with pytest.raises(ValidationError, match="at least one allowed operator email"):
-        Settings(**_production_kwargs(oidc_allowed_emails=["   ", "\t"]))
+        Settings.model_validate(_production_kwargs(oidc_allowed_emails=["   ", "\t"]))
 
 
 def test_cockpit_url_must_be_an_allowed_origin() -> None:
     with pytest.raises(ValidationError, match="must be present in the allowed origins"):
-        Settings(
-            **_production_kwargs(allowed_origins=["https://someone-else.example.com"])
+        Settings.model_validate(
+            _production_kwargs(allowed_origins=["https://someone-else.example.com"])
         )
 
 
 def test_allowed_origin_matching_ignores_a_trailing_slash() -> None:
-    settings = Settings(
-        **_production_kwargs(
+    settings = Settings.model_validate(
+        _production_kwargs(
             cockpit_url="https://cockpit.example.com/",
             allowed_origins=["https://cockpit.example.com"],
         )
