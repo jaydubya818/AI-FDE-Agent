@@ -38,6 +38,7 @@ QUALIFICATION_SECRET_POLICY_SHA256 = "sha256:" + "7" * 64
 def _production_settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "env": "production",
+        "runtime_role": "api",
         "release_revision": PRODUCTION_REVISION,
         "deployment_id": PRODUCTION_DEPLOYMENT,
         "deployment_qualification_mode": "controlled-design-partner",
@@ -258,6 +259,7 @@ def test_production_database_urls_require_the_pinned_rds_ca_bundle() -> None:
     with pytest.raises(ValidationError, match="pinned AWS RDS CA bundle"):
         Settings(
             env="production",
+            runtime_role="api",
             release_revision=PRODUCTION_REVISION,
             deployment_id=PRODUCTION_DEPLOYMENT,
             deployment_qualification_mode="controlled-design-partner",

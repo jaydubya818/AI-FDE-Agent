@@ -24,6 +24,17 @@ S3_KMS_KEY_ARN = (
 )
 
 
+def _storage_settings(**overrides: object) -> Settings:
+    """Build storage settings that do not inherit the CI job's integration bucket."""
+
+    values: dict[str, object] = {
+        "s3_bucket": "ai-fde-evidence",
+        "s3_region": "us-east-1",
+    }
+    values.update(overrides)
+    return Settings.model_validate(values)
+
+
 def test_in_memory_compensation_deletes_only_the_written_version() -> None:
     store = InMemoryEvidenceStore()
     first = store.put("evidence/key", b"first", "text/plain")
@@ -58,7 +69,7 @@ def test_development_bucket_is_versioned_before_evidence_writes(
         "client",
         lambda *_args, **_kwargs: client,
     )
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     store.ensure_bucket()
 
@@ -73,7 +84,7 @@ def test_non_development_startup_does_not_require_bucket_enumeration(
 ) -> None:
     client = MagicMock()
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    settings = Settings().model_copy(update={"env": "production"})
+    settings = _storage_settings().model_copy(update={"env": "production"})
     store = S3EvidenceStore(settings)
 
     store.ensure_bucket()
@@ -95,7 +106,7 @@ def test_storage_readiness_uses_non_enumerating_exact_region_metadata(
         "LocationConstraint": bucket_location,
     }
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    settings = Settings().model_copy(update={"s3_region": configured_region})
+    settings = _storage_settings(s3_region=configured_region)
     store = S3EvidenceStore(settings)
 
     store.check_ready()
@@ -110,7 +121,7 @@ def test_storage_readiness_rejects_a_different_bucket_region(
     client = MagicMock()
     client.get_bucket_location.return_value = {"LocationConstraint": "eu-west-1"}
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     with pytest.raises(EvidenceStoreReadinessError, match="region boundary"):
         store.check_ready()
@@ -126,7 +137,7 @@ def test_s3_compensation_uses_the_exact_put_version(
         "client",
         lambda *_args, **_kwargs: client,
     )
-    store = S3EvidenceStore(Settings(s3_kms_key_arn=S3_KMS_KEY_ARN))
+    store = S3EvidenceStore(_storage_settings(s3_kms_key_arn=S3_KMS_KEY_ARN))
 
     version = store.put("evidence/key", b"sensitive", "text/plain")
     store.delete_version(version)
@@ -156,7 +167,7 @@ def test_s3_read_uses_the_exact_persisted_version(
         "client",
         lambda *_args, **_kwargs: client,
     )
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     assert (
         store.get("evidence/key", version_id="persisted-version")
@@ -231,7 +242,7 @@ def test_s3_physical_prefix_purge_paginates_versions_and_delete_markers(
         {"Versions": [], "DeleteMarkers": [], "IsTruncated": False},
     ]
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     receipt = store.purge_engagement_evidence(engagement_id)
 
@@ -302,7 +313,7 @@ def test_s3_physical_prefix_purge_fails_on_partial_delete(
     )
     client.delete_object.side_effect = [None, denied]
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     with pytest.raises(ClientError) as caught:
         store.purge_engagement_evidence(engagement_id)
@@ -329,7 +340,7 @@ def test_s3_physical_prefix_purge_fails_if_a_version_survives_verification(
         },
     ]
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     with pytest.raises(EvidencePrefixPurgeError, match="prove the prefix is empty"):
         store.purge_engagement_evidence(engagement_id)
@@ -356,7 +367,7 @@ def test_s3_physical_prefix_purge_never_deletes_an_out_of_scope_listing(
         "IsTruncated": False,
     }
     monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: client)
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     with pytest.raises(EvidencePrefixPurgeError, match="invalid object identity"):
         store.purge_engagement_evidence(engagement_id)
@@ -377,7 +388,7 @@ def test_s3_missing_persisted_version_fails_closed(
         "client",
         lambda *_args, **_kwargs: client,
     )
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     with pytest.raises(EvidenceObjectVersionNotFoundError, match="unavailable"):
         store.get("evidence/key", version_id="missing-version")
@@ -395,7 +406,7 @@ def test_s3_put_fails_closed_without_a_compensatable_version(
         "client",
         lambda *_args, **_kwargs: client,
     )
-    store = S3EvidenceStore(Settings())
+    store = S3EvidenceStore(_storage_settings())
 
     with pytest.raises(EvidenceStoreWriteError, match="version identifier"):
         store.put("evidence/key", b"sensitive", "text/plain")
