@@ -32,7 +32,7 @@ async function reviewClaim(
   await expect(heading).toBeHidden();
 }
 
-test("synthetic Acme reaches a governed Mission Control draft preview", async ({
+test("synthetic Acme reaches the governed package-retrieval boundary", async ({
   page,
 }, testInfo) => {
   test.setTimeout(150_000);
@@ -62,7 +62,15 @@ test("synthetic Acme reaches a governed Mission Control draft preview", async ({
     }
   });
 
-  await page.goto("/");
+  const landingResponse = await page.goto("/");
+  expect(landingResponse).not.toBeNull();
+  const landingHeaders = landingResponse!.headers();
+  expect(landingHeaders["content-security-policy"]).toContain(
+    "frame-ancestors 'none'",
+  );
+  expect(landingHeaders["x-content-type-options"]).toBe("nosniff");
+  expect(landingHeaders["x-frame-options"]).toBe("DENY");
+  expect(landingHeaders["referrer-policy"]).toBe("no-referrer");
   await expect(page.getByText("Checking operator session")).toBeHidden();
   await expect(page.getByText("Loading engagements…")).toBeHidden();
   await expect(page).toHaveTitle("Factory Engineer · FDLC");
@@ -234,7 +242,17 @@ test("synthetic Acme reaches a governed Mission Control draft preview", async ({
   await expect(page.getByText("PUBLISHED", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Simulate safe retrieval" }).click();
-  await expect(page.getByText("Governed draft preview ready")).toBeVisible();
+  await expect(page.getByText("Package retrieval simulated")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Retrieval is not an import receipt. No Mission or Plan draft was created.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", {
+      name: /11\. Mission Control: External import, incomplete/,
+    }),
+  ).toBeVisible();
   await expect(
     page.getByText(/zero API requests/i, { exact: false }),
   ).toBeVisible();

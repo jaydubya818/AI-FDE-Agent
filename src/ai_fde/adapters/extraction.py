@@ -140,7 +140,7 @@ class BedrockExtractionProvider:
         client: BedrockRuntimeClient | None = None,
     ) -> None:
         if not settings.bedrock_model_id:
-            raise ValueError("Bedrock extraction requires a model or inference-profile ID.")
+            raise ValueError("Bedrock extraction requires a foundation-model ID.")
         self.model_id: str | None = settings.bedrock_model_id
         self._client = client or boto3.client(
             "bedrock-runtime",

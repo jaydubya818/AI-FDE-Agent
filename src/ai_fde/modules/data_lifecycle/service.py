@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
@@ -16,7 +15,7 @@ import yaml
 from sqlalchemy import func, inspect, select
 from sqlalchemy.orm import Session
 
-from ai_fde.adapters.storage import EvidenceStore
+from ai_fde.adapters.storage import EvidenceObjectVersionNotFoundError, EvidenceStore
 from ai_fde.db import operator_session
 from ai_fde.models import (
     Assertion,
@@ -43,6 +42,11 @@ from ai_fde.models import (
     WorkflowStep,
     WorkflowVersion,
 )
+from ai_fde.modules.design_partner.models import (
+    CustomerDataAccessEvent,
+    DesignPartnerQualification,
+)
+from ai_fde.modules.evidence.parser import SUPPORTED_EVIDENCE_EXTENSIONS
 from ai_fde.modules.factory_engineer.models import (
     CustomerFactoryModelVersion,
     FactoryDeploymentPackageVersion,
@@ -81,6 +85,8 @@ FINGERPRINT_MODELS: tuple[type[Any], ...] = (
     FactoryDeploymentPackageVersion,
     PackageRetrievalGrant,
     PackageRetrievalEvent,
+    DesignPartnerQualification,
+    CustomerDataAccessEvent,
 )
 ARCHIVE_MODELS: tuple[type[Any], ...] = (
     *FINGERPRINT_MODELS,
@@ -126,7 +132,6 @@ class GeneratedExport:
 class DeletionPlan:
     receipt_id: UUID
     engagement_id: UUID
-    evidence_keys: tuple[str, ...]
 
 
 def set_retention_deadline(
@@ -143,6 +148,16 @@ def set_retention_deadline(
         raise DataLifecycleError("Retention cannot change after deletion has started.")
     if normalized <= timestamp:
         raise DataLifecycleError("The retention deadline must be in the future.")
+    qualification = session.scalar(
+        select(DesignPartnerQualification).where(
+            DesignPartnerQualification.engagement_id == engagement.id
+        )
+    )
+    if qualification is not None and normalized > _aware_utc(qualification.retention_expires_at):
+        raise DataLifecycleError(
+            "The retention deadline cannot exceed the immutable design-partner "
+            "qualification ceiling."
+        )
     if engagement.retention_expires_at is not None:
         current = _aware_utc(engagement.retention_expires_at)
         if normalized < current:
@@ -279,8 +294,7 @@ def delete_engagement_permanently(
         now=timestamp,
     )
     try:
-        for key in plan.evidence_keys:
-            store.delete(key)
+        store.purge_engagement_evidence(engagement_id)
     except Exception as exc:  # noqa: BLE001 - object-store boundary is normalized and audited
         _mark_deletion_failed(operator_id, plan, "evidence_object_delete_failed")
         raise DeletionExecutionError(
@@ -397,7 +411,7 @@ def _prepare_deletion(
                 "The selected export is stale; download a current export first."
             )
 
-        evidence_keys = tuple(asset.storage_key for asset in snapshot.evidence_assets)
+        evidence_object_count = len(snapshot.evidence_assets)
         receipt = session.scalar(
             select(EngagementDeletionReceipt).where(
                 EngagementDeletionReceipt.engagement_id == engagement_id
@@ -413,7 +427,7 @@ def _prepare_deletion(
                 source_fingerprint=export.source_fingerprint,
                 archive_hash=export.archive_hash,
                 database_row_count=0,
-                evidence_object_count=len(evidence_keys),
+                evidence_object_count=evidence_object_count,
                 requested_at=now,
             )
             session.add(receipt)
@@ -424,7 +438,7 @@ def _prepare_deletion(
             receipt.export_id = export.id
             receipt.source_fingerprint = export.source_fingerprint
             receipt.archive_hash = export.archive_hash
-            receipt.evidence_object_count = len(evidence_keys)
+            receipt.evidence_object_count = evidence_object_count
             receipt.failure_code = None
             receipt.requested_at = now
             receipt.completed_at = None
@@ -454,7 +468,6 @@ def _prepare_deletion(
         return DeletionPlan(
             receipt_id=receipt.id,
             engagement_id=engagement_id,
-            evidence_keys=evidence_keys,
         )
 
 
@@ -530,13 +543,36 @@ def _build_archive(
                 _write_zip(archive, path, content.encode("utf-8"))
 
         for asset in snapshot.evidence_assets:
-            content = store.get(asset.storage_key)
+            if (
+                snapshot.engagement.data_classification == "sanitized"
+                and asset.storage_version_id is None
+            ):
+                raise ExportGenerationError(
+                    "Qualified evidence is missing immutable object provenance."
+                )
+            try:
+                content = store.get(
+                    asset.storage_key,
+                    version_id=asset.storage_version_id,
+                )
+            except EvidenceObjectVersionNotFoundError as exc:
+                raise ExportGenerationError(
+                    "An immutable evidence object version is unavailable."
+                ) from exc
             if hashlib.sha256(content).hexdigest() != asset.content_hash:
                 raise ExportGenerationError(
                     f"Evidence integrity verification failed for asset {asset.id}."
                 )
-            file_name = Path(asset.file_name).name
-            _write_zip(archive, f"evidence/{asset.id}/{file_name}", content)
+            extension = asset.file_name.rpartition(".")[2].casefold()
+            if extension not in SUPPORTED_EVIDENCE_EXTENSIONS:
+                raise ExportGenerationError(
+                    "Evidence has an unsupported archive extension."
+                )
+            _write_zip(
+                archive,
+                f"evidence/{asset.id}/{asset.id}.{extension}",
+                content,
+            )
     return buffer.getvalue()
 
 

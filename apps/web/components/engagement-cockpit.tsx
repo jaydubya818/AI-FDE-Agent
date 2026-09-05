@@ -27,6 +27,7 @@ import {
   ApiError,
   createOperatorNote,
   getAuthenticatedOperator,
+  getDesignPartnerQualification,
   getOperatingModel,
   getWorkspace,
   hostedDemoEnabled,
@@ -41,6 +42,7 @@ import type { AuthenticatedOperator } from "@/lib/api";
 import type {
   Claim,
   Contradiction,
+  DesignPartnerQualification,
   EngagementWorkspace,
   EngagementDeletionReceipt,
   Evidence,
@@ -51,6 +53,7 @@ import { GUIDE_LINKS, guideHref } from "@/lib/product";
 type WorkspaceData = {
   operator: AuthenticatedOperator;
   workspace: EngagementWorkspace;
+  qualification: DesignPartnerQualification | null;
   evidence: Evidence[];
   claims: Claim[];
   contradictions: Contradiction[];
@@ -124,7 +127,7 @@ const stages = [
     id: "mission-control-handoff",
     number: "11",
     label: "Mission Control",
-    detail: "Governed handoff",
+    detail: "External import",
   },
   {
     id: "evaluation",
@@ -200,6 +203,8 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedSourceKey, setSelectedSourceKey] = useState("");
+  const [selectedWorkflowClass, setSelectedWorkflowClass] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -218,7 +223,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     opportunity: false,
     readiness: false,
     package: false,
-    handoff: false,
+    missionControlImport: false,
   });
   const fileInput = useRef<HTMLInputElement>(null);
   const noteToggle = useRef<HTMLButtonElement>(null);
@@ -244,24 +249,46 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     async (quiet = false) => {
       if (!quiet) setLoading(true);
       try {
-        const [
-          operator,
-          workspace,
-          evidence,
-          claims,
-          contradictions,
-          operatingModel,
-        ] = await Promise.all([
+        const [operator, workspace] = await Promise.all([
           getAuthenticatedOperator(),
           getWorkspace(engagementId),
-          listEvidence(engagementId),
-          listClaims(engagementId),
-          listContradictions(engagementId),
-          getOperatingModel(engagementId),
         ]);
+        let qualification: DesignPartnerQualification | null = null;
+        if (workspace.engagement.data_classification === "sanitized") {
+          try {
+            qualification = await getDesignPartnerQualification(engagementId);
+          } catch (reason) {
+            if (!(reason instanceof ApiError && reason.status === 404)) {
+              throw reason;
+            }
+          }
+        }
+        const [evidence, claims, contradictions, operatingModel] =
+          await Promise.all([
+            listEvidence(engagementId),
+            listClaims(engagementId),
+            listContradictions(engagementId),
+            getOperatingModel(engagementId),
+          ]);
+        if (qualification) {
+          setSelectedSourceKey((current) =>
+            qualification.authorized_data_source_keys.includes(current)
+              ? current
+              : (qualification.authorized_data_source_keys[0] ?? ""),
+          );
+          setSelectedWorkflowClass((current) =>
+            qualification.allowed_workflow_classes.includes(current)
+              ? current
+              : (qualification.allowed_workflow_classes[0] ?? ""),
+          );
+        } else {
+          setSelectedSourceKey("");
+          setSelectedWorkflowClass("");
+        }
         setData({
           operator,
           workspace,
+          qualification,
           evidence,
           claims,
           contradictions,
@@ -316,13 +343,50 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
     () => data?.claims.filter((claim) => claim.status !== "candidate") ?? [],
     [data?.claims],
   );
+  const sanitizedWorkspace =
+    data?.workspace.engagement.data_classification === "sanitized";
+  const qualification = data?.qualification ?? null;
+  const authorizedPartnerUser = qualification?.authorized_users.find(
+    (user) => user.operator_id === data?.operator.id,
+  );
+  const qualificationUploadReady =
+    !sanitizedWorkspace ||
+    Boolean(
+      qualification &&
+      qualification.status === "ACTIVE" &&
+      qualification.qualification_state === "QUALIFIED" &&
+      qualification.data_classification !== "RESTRICTED" &&
+      data?.operator.sanitized_data_allowed &&
+      authorizedPartnerUser &&
+      authorizedPartnerUser.role !== "viewer" &&
+      qualification.authorized_data_source_keys.includes(selectedSourceKey) &&
+      qualification.allowed_workflow_classes.includes(selectedWorkflowClass),
+    );
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
+    if (!qualificationUploadReady) {
+      setNotice({
+        tone: "error",
+        text: "This upload is blocked until the exact partner, user, source, workflow, classification, and retention boundary is qualified.",
+      });
+      if (fileInput.current) fileInput.current.value = "";
+      return;
+    }
     setUploading(true);
     setNotice(null);
     try {
-      await uploadEvidence(engagementId, file);
+      await uploadEvidence(
+        engagementId,
+        file,
+        sanitizedWorkspace && qualification
+          ? {
+              sourceKey: selectedSourceKey,
+              workflowClass: selectedWorkflowClass,
+              dataClassification: qualification.data_classification,
+            }
+          : undefined,
+      );
       setNotice({
         tone: "success",
         text: `${file.name} was preserved and queued for extraction.`,
@@ -474,6 +538,16 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
 
   const { operator } = data;
   const { engagement, counts } = data.workspace;
+  const partnerQualified = Boolean(
+    qualification?.status === "ACTIVE" &&
+    qualification.qualification_state === "QUALIFIED",
+  );
+  const workspaceBadge =
+    engagement.data_classification === "synthetic"
+      ? "Synthetic workspace"
+      : partnerQualified
+        ? "Qualified partner boundary"
+        : "Partner qualification blocked";
 
   return (
     <div className="cockpit-shell grid min-h-screen grid-cols-[248px_1fr]">
@@ -495,8 +569,10 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
           <p className="mt-1 text-xs font-semibold text-[var(--ink-soft)]">
             {engagement.workflow_name}
           </p>
-          <span className="mt-3 inline-flex rounded-full bg-[var(--amber-soft)] px-2.5 py-1 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--amber)]">
-            Synthetic workspace
+          <span
+            className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] ${partnerQualified ? "bg-[var(--teal-soft)] text-[var(--teal)]" : "bg-[var(--amber-soft)] text-[var(--amber)]"}`}
+          >
+            {workspaceBadge}
           </span>
         </div>
 
@@ -527,7 +603,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                                 : stage.id === "deployment-package"
                                   ? handoffProgress.package
                                   : stage.id === "mission-control-handoff"
-                                    ? handoffProgress.handoff
+                                    ? handoffProgress.missionControlImport
                                     : stage.id === "evaluation"
                                       ? assessmentReady
                                       : dataLifecycleReady;
@@ -615,13 +691,24 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             </div>
           </section>
 
+          {sanitizedWorkspace && (
+            <DesignPartnerBoundary
+              currentOperatorId={operator.id}
+              onSourceChange={setSelectedSourceKey}
+              onWorkflowChange={setSelectedWorkflowClass}
+              qualification={qualification}
+              selectedSourceKey={selectedSourceKey}
+              selectedWorkflowClass={selectedWorkflowClass}
+              uploadReady={qualificationUploadReady}
+            />
+          )}
+
           <div className="mt-8 rounded-xl border border-[var(--amber)]/25 bg-[var(--amber-soft)] px-4 py-3 text-xs font-semibold leading-5 text-[var(--amber)]">
             <strong className="font-extrabold">V1 capability boundary:</strong>{" "}
-            PDF, DOCX, CSV, email, image, Markdown, and text source formats are
-            supported. Local development uses transparent deterministic fixture
-            patterns across three synthetic workflows; production requires
-            fail-closed Bedrock extraction. Coding-agent execution and
-            autonomous remediation are not included.
+            {sanitizedWorkspace
+              ? "This controlled partner path accepts only explicitly authorized Markdown or plain-text evidence and uses fail-closed Bedrock extraction."
+              : "PDF, DOCX, CSV, email, image, Markdown, and text source formats are supported for synthetic development."}{" "}
+            Coding-agent execution and autonomous remediation are not included.
           </div>
 
           {notice && (
@@ -671,6 +758,13 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                               {humanBytes(asset.byte_count)} · SHA-256{" "}
                               {asset.content_hash.slice(0, 10)}…
                             </p>
+                            {asset.design_partner_qualification_id && (
+                              <p className="mt-2 text-[0.63rem] font-bold uppercase tracking-[0.07em] text-[var(--teal)]">
+                                {asset.data_classification} · source{" "}
+                                {asset.authorized_source_key} · workflow{" "}
+                                {asset.authorized_workflow_class}
+                              </p>
+                            )}
                             {asset.error_message && (
                               <p className="mt-2 text-xs text-[var(--red)]">
                                 {asset.error_message}
@@ -701,12 +795,17 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                     Preserve source evidence
                   </p>
                   <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">
-                    PDF, DOCX, CSV, email, image, Markdown, or text · 5 MB
-                    maximum
+                    {sanitizedWorkspace
+                      ? "Authorized Markdown or plain text only · 5 MB maximum"
+                      : "PDF, DOCX, CSV, email, image, Markdown, or text · 5 MB maximum"}
                   </p>
                   <input
-                    accept=".pdf,.docx,.csv,.eml,.png,.jpg,.jpeg,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv,message/rfc822,image/png,image/jpeg,text/markdown,text/plain"
-                    disabled={uploading}
+                    accept={
+                      sanitizedWorkspace
+                        ? ".md,.txt,text/markdown,text/plain"
+                        : ".pdf,.docx,.csv,.eml,.png,.jpg,.jpeg,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv,message/rfc822,image/png,image/jpeg,text/markdown,text/plain"
+                    }
+                    disabled={uploading || !qualificationUploadReady}
                     hidden
                     onChange={(event) =>
                       void handleFile(event.target.files?.[0])
@@ -717,26 +816,34 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
                   />
                   <button
                     className="mt-4 rounded-full bg-[var(--ink)] px-4 py-2.5 text-xs font-extrabold text-white disabled:cursor-wait disabled:opacity-60"
-                    disabled={uploading}
+                    disabled={uploading || !qualificationUploadReady}
                     onClick={() => fileInput.current?.click()}
                     type="button"
                   >
                     {uploading ? "Preserving…" : "Choose file"}
                   </button>
                 </div>
-                <button
-                  aria-controls="operator-note-form"
-                  aria-expanded={noteOpen}
-                  className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-xs font-extrabold text-[var(--ink)]"
-                  onClick={() => setNoteOpen((value) => !value)}
-                  ref={noteToggle}
-                  type="button"
-                >
-                  {noteOpen
-                    ? "Close operator note"
-                    : "Add operator note as source evidence"}
-                </button>
-                {noteOpen && (
+                {sanitizedWorkspace ? (
+                  <p className="rounded-xl border border-[var(--line)] bg-[var(--canvas)] px-4 py-3 text-xs font-bold leading-5 text-[var(--ink-soft)]">
+                    Free-form operator notes are disabled for customer data.
+                    Every source must carry the prequalified source and workflow
+                    binding.
+                  </p>
+                ) : (
+                  <button
+                    aria-controls="operator-note-form"
+                    aria-expanded={noteOpen}
+                    className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-xs font-extrabold text-[var(--ink)]"
+                    onClick={() => setNoteOpen((value) => !value)}
+                    ref={noteToggle}
+                    type="button"
+                  >
+                    {noteOpen
+                      ? "Close operator note"
+                      : "Add operator note as source evidence"}
+                  </button>
+                )}
+                {!sanitizedWorkspace && noteOpen && (
                   <form
                     className="surface grid gap-3 rounded-2xl p-5"
                     id="operator-note-form"
@@ -956,6 +1063,7 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
             engagementId={engagementId}
             lifecycleVersion={JSON.stringify(lifecycleProgress)}
             onProgress={handleHandoffProgress}
+            operatorId={operator.id}
             synthetic={
               hostedDemoEnabled &&
               engagement.data_classification === "synthetic"
@@ -979,15 +1087,38 @@ export function EngagementCockpit({ engagementId }: { engagementId: string }) {
               V1 boundary
             </p>
             <p className="display-font mt-3 text-2xl font-medium">
-              The lifecycle stops at approved intent and a governed draft
-              handoff.
+              Production readiness and customer-data access are separate
+              decisions.
             </p>
+            <dl className="mt-5 grid gap-3 md:grid-cols-3">
+              <BoundaryStatus
+                label="Application production"
+                value={
+                  hostedDemoEnabled
+                    ? "Phase 2 synthetic deployment"
+                    : "Deployment gate independent"
+                }
+              />
+              <BoundaryStatus
+                label="Customer-data access"
+                value={
+                  partnerQualified
+                    ? "Qualified for this engagement"
+                    : "Access not qualified"
+                }
+              />
+              <BoundaryStatus
+                label="General customer production"
+                value="Not approved"
+              />
+            </dl>
             <p className="mt-3 max-w-3xl text-xs leading-5 text-white/60">
               Factory Engineer never dispatches coding agents or treats source
               evidence as execution proof. Mission Control independently owns
               Plan approval, WorkOrders, Attempts, verification, acceptance,
-              release, and deployment. Production and sanitized data remain
-              gated until live tenant and deployment validation succeeds.
+              release, and deployment. Qualified customer-data access for this
+              engagement is not design-partner production qualification and does
+              not authorize broader customer production.
             </p>
           </section>
         </div>
@@ -1053,6 +1184,172 @@ function ReceiptField({ label, value }: { label: string; value: string }) {
       <p className="mt-2 break-all font-mono text-xs font-bold text-[var(--ink)]">
         {value}
       </p>
+    </div>
+  );
+}
+
+function DesignPartnerBoundary({
+  qualification,
+  currentOperatorId,
+  selectedSourceKey,
+  selectedWorkflowClass,
+  uploadReady,
+  onSourceChange,
+  onWorkflowChange,
+}: {
+  qualification: DesignPartnerQualification | null;
+  currentOperatorId: string;
+  selectedSourceKey: string;
+  selectedWorkflowClass: string;
+  uploadReady: boolean;
+  onSourceChange: (value: string) => void;
+  onWorkflowChange: (value: string) => void;
+}) {
+  if (!qualification) {
+    return (
+      <section
+        aria-labelledby="partner-boundary-heading"
+        className="mt-8 rounded-2xl border border-[var(--red)]/25 bg-[var(--red-soft)] p-5"
+      >
+        <p className="eyebrow text-[var(--red)]">
+          Controlled customer-data path
+        </p>
+        <h2
+          className="display-font mt-2 text-2xl font-medium"
+          id="partner-boundary-heading"
+        >
+          No design-partner qualification is bound.
+        </h2>
+        <p className="mt-2 text-xs font-semibold leading-5 text-[var(--red)]">
+          Customer evidence, analysis, and handoff stay blocked. An
+          administrator must provision one explicit partner, user set, source
+          set, workflow, repository, classification, retention period, and
+          authorization basis.
+        </p>
+      </section>
+    );
+  }
+
+  const currentUser = qualification.authorized_users.find(
+    (user) => user.operator_id === currentOperatorId,
+  );
+
+  return (
+    <section
+      aria-labelledby="partner-boundary-heading"
+      className="surface mt-8 overflow-hidden rounded-2xl"
+    >
+      <div className="grid gap-5 border-b border-[var(--line)] p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div>
+          <p className="eyebrow">Controlled customer-data path</p>
+          <h2
+            className="display-font mt-2 text-2xl font-medium"
+            id="partner-boundary-heading"
+          >
+            {qualification.organization}
+          </h2>
+          <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">
+            Qualification {qualification.partner_key} binds every customer-data
+            read and artifact to this exact operating boundary.
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] ${uploadReady ? "bg-[var(--teal-soft)] text-[var(--teal)]" : "bg-[var(--red-soft)] text-[var(--red)]"}`}
+        >
+          {uploadReady ? "Qualified and active" : "Fail-closed"}
+        </span>
+      </div>
+      <dl className="grid divide-y divide-[var(--line)] border-b border-[var(--line)] md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+        <QualificationField
+          label="Qualification"
+          value={`${qualification.status} · ${qualification.qualification_state}`}
+        />
+        <QualificationField
+          label="Classification"
+          value={qualification.data_classification}
+        />
+        <QualificationField
+          label="Current user"
+          value={
+            currentUser
+              ? `${currentUser.display_name} · ${currentUser.role}`
+              : "Not authorized"
+          }
+        />
+        <QualificationField
+          label="Retention"
+          value={`${qualification.retention_days} days`}
+        />
+      </dl>
+      <div className="grid gap-5 p-5 lg:grid-cols-2">
+        <label className="grid gap-2 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
+          Authorized source
+          <select
+            className="rounded-xl border border-[var(--line)] bg-white px-3 py-3 text-xs font-bold normal-case tracking-normal text-[var(--ink)]"
+            onChange={(event) => onSourceChange(event.target.value)}
+            value={selectedSourceKey}
+          >
+            {qualification.authorized_data_source_keys.map((sourceKey) => (
+              <option key={sourceKey} value={sourceKey}>
+                {sourceKey}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-2 text-[0.62rem] font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
+          Authorized workflow class
+          <select
+            className="rounded-xl border border-[var(--line)] bg-white px-3 py-3 text-xs font-bold normal-case tracking-normal text-[var(--ink)]"
+            onChange={(event) => onWorkflowChange(event.target.value)}
+            value={selectedWorkflowClass}
+          >
+            {qualification.allowed_workflow_classes.map((workflowClass) => (
+              <option key={workflowClass} value={workflowClass}>
+                {workflowClass}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="rounded-xl bg-[var(--canvas)] p-4 text-xs leading-5 text-[var(--ink-soft)] lg:col-span-2">
+          <strong className="font-extrabold text-[var(--ink)]">
+            Authorized repositories:
+          </strong>{" "}
+          {qualification.authorized_repository_refs.join(", ") || "None"}
+          <br />
+          <strong className="font-extrabold text-[var(--ink)]">
+            Authorization basis:
+          </strong>{" "}
+          {qualification.authorization_basis_ref}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function QualificationField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="p-4">
+      <dt className="text-[0.6rem] font-extrabold uppercase tracking-[0.1em] text-[var(--ink-soft)]">
+        {label}
+      </dt>
+      <dd className="mt-2 text-xs font-extrabold">{value}</dd>
+    </div>
+  );
+}
+
+function BoundaryStatus({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+      <dt className="text-[0.6rem] font-extrabold uppercase tracking-[0.1em] text-white/50">
+        {label}
+      </dt>
+      <dd className="mt-2 text-xs font-extrabold text-white">{value}</dd>
     </div>
   );
 }

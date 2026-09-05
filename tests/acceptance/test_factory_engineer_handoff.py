@@ -7,18 +7,25 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import Session
 
 from ai_fde.adapters.storage import InMemoryEvidenceStore
+from ai_fde.config import get_settings
 from ai_fde.db import operator_session
 from ai_fde.models import (
     Assertion,
     AuditEvent,
     CandidateClaim,
+    Engagement,
     EvidenceAsset,
     Operator,
     WorkflowStep,
     WorkflowVersion,
+)
+from ai_fde.modules.design_partner.service import (
+    provision_design_partner_qualification,
+    transition_design_partner_qualification,
 )
 from ai_fde.modules.engagements.service import create_engagement
 from ai_fde.modules.evidence.service import create_evidence_asset
@@ -62,6 +69,7 @@ from ai_fde.modules.factory_engineer.service import (
     create_readiness_assessment,
     customer_factory_model_authority_reference,
     evidence_asset_reference,
+    get_factory_handoff_prerequisites,
     publish_deployment_package,
     reject_deployment_package,
     select_factory_opportunity,
@@ -74,6 +82,75 @@ from ai_fde.modules.knowledge.review import review_claim
 from tests.conftest import OperatorFixture
 
 PACKAGE_FIXTURE = Path("fixtures/contracts/factory-deployment-package-v1.json")
+QUALIFIED_SOURCE_KEY = "approved-manual-document"
+QUALIFIED_REPOSITORY_REF = "github.com/sellerfi/marketplace"
+QUALIFIED_WORKFLOW_CLASS = "software-change/verified-pr/v1"
+QUALIFICATION_BASIS = "qualification-record:retrieval-recheck"
+
+
+def _qualify_existing_engagement(
+    engagement_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    *,
+    now: datetime,
+) -> None:
+    engine = create_engine(get_settings().migration_database_url)
+    try:
+        with Session(engine) as session, session.begin():
+            provision_design_partner_qualification(
+                session,
+                engagement_id=engagement_id,
+                partner_key=f"retrieval-{engagement_id.hex}",
+                organization="Retrieval design partner",
+                authorized_data_source_keys=[QUALIFIED_SOURCE_KEY],
+                authorized_repository_refs=[QUALIFIED_REPOSITORY_REF],
+                allowed_workflow_classes=[QUALIFIED_WORKFLOW_CLASS],
+                data_classification="CONFIDENTIAL",
+                retention_days=30,
+                authorization_basis_ref=QUALIFICATION_BASIS,
+                configured_by_id=owner_id,
+                now=now,
+            )
+            transition_design_partner_qualification(
+                session,
+                engagement_id=engagement_id,
+                qualification_state="IN_PROGRESS",
+                authorization_basis_ref=QUALIFICATION_BASIS,
+                actor_id=owner_id,
+                now=now,
+            )
+            transition_design_partner_qualification(
+                session,
+                engagement_id=engagement_id,
+                qualification_state="QUALIFIED",
+                authorization_basis_ref=QUALIFICATION_BASIS,
+                actor_id=owner_id,
+                now=now,
+            )
+    finally:
+        engine.dispose()
+
+
+def _set_design_partner_status(
+    engagement_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    status: str,
+    *,
+    now: datetime,
+) -> None:
+    engine = create_engine(get_settings().migration_database_url)
+    try:
+        with Session(engine) as session, session.begin():
+            transition_design_partner_qualification(
+                session,
+                engagement_id=engagement_id,
+                status=status,
+                authorization_basis_ref=QUALIFICATION_BASIS,
+                actor_id=owner_id,
+                now=now,
+            )
+    finally:
+        engine.dispose()
 
 
 def _ready_assessment(basis: SourceReference) -> ReadinessAssessmentInput:
@@ -107,6 +184,81 @@ def _approved_input_ref(
         version=version,
         sha256=digest,
     )
+
+
+@pytest.mark.integration
+def test_factory_handoff_prerequisites_are_digest_valid_and_engagement_scoped(
+    test_operator: OperatorFixture,
+) -> None:
+    store = InMemoryEvidenceStore()
+
+    with operator_session(test_operator.id) as session:
+        operator = session.get_one(Operator, test_operator.id)
+        engagement = create_engagement(
+            session,
+            operator=operator,
+            name=f"Prerequisite projection {uuid.uuid4()}",
+            workflow_name="Invoice approval",
+            primary_outcome="Expose only server-derived handoff references.",
+        )
+        other_engagement = create_engagement(
+            session,
+            operator=operator,
+            name=f"Other prerequisite tenant {uuid.uuid4()}",
+            workflow_name="Order fulfillment",
+            primary_outcome="Remain outside the requested handoff projection.",
+        )
+        included = create_evidence_asset(
+            session,
+            store,
+            engagement_id=engagement.id,
+            operator=operator,
+            file_name="approved-source.md",
+            content_type="text/markdown",
+            content=b"Approved source for the requested engagement.",
+            source_type="fixture",
+        )
+        incomplete = create_evidence_asset(
+            session,
+            store,
+            engagement_id=engagement.id,
+            operator=operator,
+            file_name="queued-source.md",
+            content_type="text/markdown",
+            content=b"Queued source must remain unavailable to handoff.",
+            source_type="fixture",
+        )
+        other = create_evidence_asset(
+            session,
+            store,
+            engagement_id=other_engagement.id,
+            operator=operator,
+            file_name="other-tenant-source.md",
+            content_type="text/markdown",
+            content=b"Complete source owned by another engagement.",
+            source_type="fixture",
+        )
+        included.status = "complete"
+        other.status = "complete"
+        session.flush()
+
+        prerequisites = get_factory_handoff_prerequisites(session, engagement.id)
+
+        assert prerequisites.engagement.id == engagement.id
+        assert prerequisites.evidence_refs == [evidence_asset_reference(included)]
+        assert all(
+            reference.ref
+            not in {
+                f"evidence_asset:{incomplete.id}",
+                f"evidence_asset:{other.id}",
+            }
+            for reference in prerequisites.evidence_refs
+        )
+        assert prerequisites.verified_claim_refs == []
+        assert prerequisites.current_workflow_ref is None
+        assert prerequisites.target_workflow_ref is None
+        assert prerequisites.economic_case_ref is None
+        assert prerequisites.implementation_artifact_refs == []
 
 
 @pytest.mark.integration
@@ -156,7 +308,8 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
     with operator_session(test_operator.id) as session:
         job = lease_next_job(session, engagement_id, lease_seconds=30)
         assert job is not None
-        process_job(session, store, job)
+        assert job.lease_token is not None
+        process_job(session, store, job, lease_token=job.lease_token)
 
     with operator_session(test_operator.id) as session:
         operator = session.get_one(Operator, test_operator.id)
@@ -187,11 +340,15 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
                 decision="rejected",
                 reason="Closed after human review for the acceptance case.",
             )
+        session.flush()
         # Retrieve the concrete row after all claims close so provenance is accepted as complete.
         evidence = session.get_one(EvidenceAsset, evidence_id)
         assert evidence.status == "complete"
-        evidence_ref = evidence_asset_reference(evidence)
-        assertion_ref = assertion_reference(assertion)
+        prerequisites = get_factory_handoff_prerequisites(session, engagement_id)
+        assert prerequisites.evidence_refs == [evidence_asset_reference(evidence)]
+        assert prerequisites.verified_claim_refs == [assertion_reference(assertion)]
+        evidence_ref = prerequisites.evidence_refs[0]
+        assertion_ref = prerequisites.verified_claim_refs[0]
         fact = TraceableFact(
             key="invoice-approval",
             label="Invoice approval",
@@ -310,6 +467,9 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
         session.flush()
 
         current_ref = workflow_version_reference(session, current)
+        prerequisites = get_factory_handoff_prerequisites(session, engagement_id)
+        assert prerequisites.current_workflow_ref == current_ref
+        assert prerequisites.target_workflow_ref == workflow_version_reference(session, target)
         template = SYNTHETIC_OPPORTUNITY_TEMPLATES[0]
         opportunity = create_factory_opportunity(
             session,
@@ -468,6 +628,7 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
             package_id=package_id,
             package_version=package_version,
             principal=authentication.principal,
+            runtime_authority_check=lambda _timestamp: None,
             correlation_id=correlation_id,
             now=timestamp + timedelta(seconds=2),
         )
@@ -476,6 +637,107 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
         assert decision.package.attestation.correlation_id == correlation_id
         assert decision.package.package.integrity.digest == decision.package.attestation.digest
         assert len(serialize_published_package_envelope(decision.package)) <= 256_000
+
+    # A previously published package remains retrievable only while the current,
+    # engagement-bound design-partner authority remains active and within retention.
+    with operator_session(test_operator.id) as session:
+        engagement = session.get_one(Engagement, engagement_id)
+        engagement.data_classification = "sanitized"
+        engagement.retention_expires_at = timestamp + timedelta(hours=1)
+    _qualify_existing_engagement(
+        engagement_id,
+        test_operator.id,
+        now=timestamp,
+    )
+
+    with operator_session(service_operator_id) as session:
+        active_authentication = authenticate_retrieval_token(
+            session,
+            token=retrieval_token,
+            now=timestamp + timedelta(seconds=3),
+        )
+        assert active_authentication.principal is not None
+        active_decision = retrieve_published_package(
+            session,
+            package_id=package_id,
+            package_version=package_version,
+            principal=active_authentication.principal,
+            runtime_authority_check=lambda _timestamp: None,
+            now=timestamp + timedelta(seconds=3),
+        )
+        assert active_decision.allowed is True
+
+    _set_design_partner_status(
+        engagement_id,
+        test_operator.id,
+        "SUSPENDED",
+        now=timestamp + timedelta(seconds=4),
+    )
+    with operator_session(service_operator_id) as session:
+        suspended_authentication = authenticate_retrieval_token(
+            session,
+            token=retrieval_token,
+            now=timestamp + timedelta(seconds=5),
+        )
+        assert suspended_authentication.principal is not None
+        suspended_decision = retrieve_published_package(
+            session,
+            package_id=package_id,
+            package_version=package_version,
+            principal=suspended_authentication.principal,
+            runtime_authority_check=lambda _timestamp: None,
+            now=timestamp + timedelta(seconds=5),
+        )
+        assert suspended_decision.result == "DENIED_QUALIFICATION"
+        assert suspended_decision.package is None
+
+    _set_design_partner_status(
+        engagement_id,
+        test_operator.id,
+        "ACTIVE",
+        now=timestamp + timedelta(seconds=6),
+    )
+    with operator_session(service_operator_id) as session:
+        expired_authentication = authenticate_retrieval_token(
+            session,
+            token=retrieval_token,
+            now=timestamp + timedelta(hours=2),
+        )
+        assert expired_authentication.principal is not None
+        expired_decision = retrieve_published_package(
+            session,
+            package_id=package_id,
+            package_version=package_version,
+            principal=expired_authentication.principal,
+            runtime_authority_check=lambda _timestamp: None,
+            now=timestamp + timedelta(hours=2),
+        )
+        assert expired_decision.result == "DENIED_QUALIFICATION"
+        assert expired_decision.package is None
+
+    _set_design_partner_status(
+        engagement_id,
+        test_operator.id,
+        "REVOKED",
+        now=timestamp + timedelta(hours=3),
+    )
+    with operator_session(service_operator_id) as session:
+        revoked_qualification_authentication = authenticate_retrieval_token(
+            session,
+            token=retrieval_token,
+            now=timestamp + timedelta(hours=3, seconds=1),
+        )
+        assert revoked_qualification_authentication.principal is not None
+        revoked_qualification_decision = retrieve_published_package(
+            session,
+            package_id=package_id,
+            package_version=package_version,
+            principal=revoked_qualification_authentication.principal,
+            runtime_authority_check=lambda _timestamp: None,
+            now=timestamp + timedelta(hours=3, seconds=1),
+        )
+        assert revoked_qualification_decision.result == "DENIED_QUALIFICATION"
+        assert revoked_qualification_decision.package is None
 
     forged_token = retrieval_token[:-1] + ("A" if retrieval_token[-1] != "A" else "B")
     with operator_session(service_operator_id) as session:
@@ -524,14 +786,16 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
             opportunity_id=replacement.id,
             operator=operator,
             reason="Replace the selected deployment line.",
-            now=timestamp + timedelta(seconds=3),
+            now=timestamp + timedelta(hours=4),
         )
         package = session.get_one(FactoryDeploymentPackageVersion, package_version_id)
         assert package.status == FactoryDeploymentPackageStatus.STALE
 
     with operator_session(service_operator_id) as session:
         authentication = authenticate_retrieval_token(
-            session, token=retrieval_token, now=timestamp + timedelta(seconds=4)
+            session,
+            token=retrieval_token,
+            now=timestamp + timedelta(hours=4, seconds=1),
         )
         assert authentication.principal is not None
         stale_decision = retrieve_published_package(
@@ -539,8 +803,9 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
             package_id=package_id,
             package_version=package_version,
             principal=authentication.principal,
+            runtime_authority_check=lambda _timestamp: None,
             correlation_id=uuid.uuid4(),
-            now=timestamp + timedelta(seconds=4),
+            now=timestamp + timedelta(hours=4, seconds=1),
         )
         assert stale_decision.allowed is False
         assert stale_decision.result == "DENIED_STALE"
@@ -551,7 +816,7 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
                 .select_from(PackageRetrievalEvent)
                 .where(PackageRetrievalEvent.package_version_id == package_version_id)
             )
-            == 2
+            == 6
         )
 
     with operator_session(service_operator_id) as session:
@@ -563,14 +828,16 @@ def test_trusted_factory_handoff_is_human_approved_retrievable_and_stale_safe(
                 engagement_id=engagement_id,
                 grant_id=retrieval_grant_id,
                 revoked_by=revocation_session.get_one(Operator, test_operator.id),
-                now=timestamp + timedelta(seconds=5),
+                now=timestamp + timedelta(hours=5),
             )
         revoked_authentication = authenticate_retrieval_token(
-            session, token=retrieval_token, now=timestamp + timedelta(seconds=6)
+            session,
+            token=retrieval_token,
+            now=timestamp + timedelta(hours=5, seconds=1),
         )
         assert revoked_authentication.authenticated is False
         assert revoked_authentication.result == "REVOKED_TOKEN"
-        assert cached_grant.revoked_at == timestamp + timedelta(seconds=5)
+        assert cached_grant.revoked_at == timestamp + timedelta(hours=5)
         session.flush()
         denial = session.scalar(
             select(AuditEvent).where(

@@ -334,8 +334,10 @@ export default function EngagementsPage() {
                 Frame the engagement.
               </h2>
               <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">
-                V1 workspaces are synthetic or sanitized. Customer production
-                data is intentionally out of scope.
+                New workspaces are synthetic. The single controlled
+                design-partner workspace is provisioned separately with an
+                explicit user, source, workflow, repository, classification, and
+                retention boundary.
               </p>
             </div>
             <form className="grid gap-5" onSubmit={handleCreate}>

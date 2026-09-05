@@ -152,6 +152,20 @@ class FactoryHandoffWorkspaceResponse(BaseModel):
     latest_retrieval: PackageRetrievalEventResponse | None
 
 
+class FactoryHandoffPrerequisitesResponse(BaseModel):
+    engagement_id: UUID
+    organization_key: str
+    organization_label: str
+    workflow_name: str
+    primary_outcome: str
+    evidence_refs: list[SourceReference]
+    verified_claim_refs: list[SourceReference]
+    current_workflow_ref: ImmutableVersionReference | None
+    target_workflow_ref: ImmutableVersionReference | None
+    economic_case_ref: SourceReference | None
+    implementation_artifact_refs: list[SourceReference]
+
+
 class FactoryOpportunityCreateRequest(BaseModel):
     customer_factory_model_id: UUID
     opportunity: FactoryOpportunityInput

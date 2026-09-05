@@ -1,5 +1,7 @@
 locals {
-  common_python_environment = concat([
+  rds_ca_bundle_path   = "/opt/ai-fde/certs/aws-rds-global-bundle.pem"
+  rds_ca_bundle_sha256 = "sha256:e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3"
+  common_python_environment = [
     { name = "AI_FDE_ENV", value = "production" },
     { name = "AI_FDE_AUTH_MODE", value = "oidc" },
     { name = "AI_FDE_ALLOWED_ORIGINS", value = jsonencode(["https://${var.domain_name}"]) },
@@ -10,37 +12,57 @@ locals {
     { name = "AI_FDE_OIDC_ALLOWED_EMAILS", value = jsonencode(var.oidc_allowed_emails) },
     { name = "AI_FDE_WORKER_OPERATOR_ID", value = var.worker_operator_id },
     { name = "AI_FDE_S3_BUCKET", value = aws_s3_bucket.evidence.id },
+    { name = "AI_FDE_S3_KMS_KEY_ARN", value = aws_kms_key.evidence.arn },
     { name = "AI_FDE_S3_REGION", value = var.aws_region },
     { name = "AI_FDE_S3_USE_WORKLOAD_IDENTITY", value = "true" },
     { name = "AI_FDE_EXTRACTION_PROVIDER", value = "bedrock" },
     { name = "AI_FDE_BEDROCK_MODEL_ID", value = var.bedrock_model_id },
     { name = "AI_FDE_BEDROCK_REGION", value = var.aws_region },
+    { name = "AI_FDE_BEDROCK_ALLOWED_DATA_CLASSIFICATIONS", value = jsonencode(sort(var.bedrock_allowed_data_classifications)) },
     { name = "AI_FDE_WORKER_LEASE_SECONDS", value = "300" },
     { name = "AI_FDE_SANITIZED_DATA_ENABLED", value = tostring(var.sanitized_data_enabled) },
-    ], var.deployment_validation_id == null ? [] : [
-    { name = "AI_FDE_DEPLOYMENT_VALIDATION_ID", value = var.deployment_validation_id },
-  ])
-  api_secrets = [
+    { name = "AI_FDE_RELEASE_REVISION", value = var.release_revision },
+    { name = "AI_FDE_DEPLOYMENT_ID", value = var.deployment_id },
+    { name = "AI_FDE_DEPLOYMENT_QUALIFICATION_MODE", value = var.deployment_qualification_mode },
+    { name = "AI_FDE_DEPLOYMENT_QUALIFICATION_ROLE_ARN", value = aws_iam_role.qualifier.arn },
+    { name = "AI_FDE_QUALIFICATION_SECRET_POLICY_SHA256", value = "sha256:${sha256(jsonencode(local.qualification_secret_policy_contract))}" },
+    { name = "AI_FDE_RDS_CA_BUNDLE_PATH", value = local.rds_ca_bundle_path },
+    { name = "AI_FDE_RDS_CA_BUNDLE_SHA256", value = local.rds_ca_bundle_sha256 },
+    { name = "AI_FDE_EVIDENCE_SIGNING_PUBLIC_KEY_DER_B64", value = data.aws_kms_public_key.evidence_signing.public_key },
+    { name = "AI_FDE_EVIDENCE_SIGNING_PUBLIC_KEY_B64_SHA256", value = "sha256:${sha256(data.aws_kms_public_key.evidence_signing.public_key)}" },
+  ]
+  active_qualification_environment = var.active_qualification_record_version_id == null ? [] : [
+    { name = "AI_FDE_DEPLOYMENT_QUALIFICATION_RECORD_VERSION_ID", value = var.active_qualification_record_version_id },
+  ]
+  pending_qualification_environment = var.pending_qualification_record_version_id == null ? [] : [
+    { name = "AI_FDE_DEPLOYMENT_QUALIFICATION_RECORD_VERSION_ID", value = var.pending_qualification_record_version_id },
+  ]
+  active_qualification_record_secret = var.active_qualification_record_version_id == null ? [] : [{
+    name      = "AI_FDE_DEPLOYMENT_QUALIFICATION_RECORD"
+    valueFrom = "${aws_secretsmanager_secret.qualification.arn}:::${var.active_qualification_record_version_id}"
+  }]
+  pending_qualification_record_secret = var.pending_qualification_record_version_id == null ? [] : [{
+    name      = "AI_FDE_DEPLOYMENT_QUALIFICATION_RECORD"
+    valueFrom = "${aws_secretsmanager_secret.qualification.arn}:::${var.pending_qualification_record_version_id}"
+  }]
+  api_secrets = concat([
     {
       name      = "AI_FDE_DATABASE_URL"
-      valueFrom = "${aws_secretsmanager_secret.runtime["api"].arn}:AI_FDE_DATABASE_URL::"
+      valueFrom = "${aws_secretsmanager_secret.runtime["api"].arn}:AI_FDE_DATABASE_URL::${var.api_runtime_secret_version_id}"
     },
     {
       name      = "AI_FDE_OIDC_CLIENT_SECRET"
-      valueFrom = "${aws_secretsmanager_secret.runtime["api"].arn}:AI_FDE_OIDC_CLIENT_SECRET::"
+      valueFrom = "${aws_secretsmanager_secret.runtime["api"].arn}:AI_FDE_OIDC_CLIENT_SECRET::${var.api_runtime_secret_version_id}"
     },
-  ]
-  worker_secrets = [{
-    name      = "AI_FDE_DATABASE_URL"
-    valueFrom = "${aws_secretsmanager_secret.runtime["worker"].arn}:AI_FDE_DATABASE_URL::"
-  }]
-  migration_secrets = [{
+  ], local.active_qualification_record_secret)
+  worker_secrets = local.active_qualification_record_secret
+  migration_secrets = concat([{
     name      = "AI_FDE_MIGRATION_DATABASE_URL"
-    valueFrom = "${aws_secretsmanager_secret.runtime["migration"].arn}:AI_FDE_MIGRATION_DATABASE_URL::"
+    valueFrom = "${aws_secretsmanager_secret.runtime["migration"].arn}:AI_FDE_MIGRATION_DATABASE_URL::${var.migration_runtime_secret_version_id}"
     }, {
     name      = "AI_FDE_APP_DATABASE_PASSWORD"
-    valueFrom = "${aws_secretsmanager_secret.runtime["migration"].arn}:AI_FDE_APP_DATABASE_PASSWORD::"
-  }]
+    valueFrom = "${aws_secretsmanager_secret.runtime["migration"].arn}:AI_FDE_APP_DATABASE_PASSWORD::${var.migration_runtime_secret_version_id}"
+  }], local.pending_qualification_record_secret)
 }
 
 resource "aws_cloudwatch_log_group" "runtime" {
@@ -89,7 +111,7 @@ resource "aws_lb_target_group" "api" {
   target_type = "ip"
   vpc_id      = aws_vpc.main.id
   health_check {
-    path                = "/api/health"
+    path                = "/api/ready"
     matcher             = "200"
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -163,6 +185,9 @@ resource "aws_ecs_task_definition" "web" {
       { name = "NODE_ENV", value = "production" },
       { name = "HOSTNAME", value = "0.0.0.0" },
       { name = "PORT", value = "3000" },
+      { name = "AI_FDE_RELEASE_REVISION", value = var.release_revision },
+      { name = "AI_FDE_DEPLOYMENT_ID", value = var.deployment_id },
+      { name = "AI_FDE_DEPLOYMENT_QUALIFICATION_MODE", value = var.deployment_qualification_mode },
     ]
     readonlyRootFilesystem = false
     user                   = "10001"
@@ -191,9 +216,14 @@ resource "aws_ecs_task_definition" "api" {
     essential          = true
     versionConsistency = "enabled"
     portMappings       = [{ containerPort = 8000, hostPort = 8000, protocol = "tcp" }]
-    environment = concat(local.common_python_environment, [
-      { name = "AI_FDE_RUNTIME_ROLE", value = "api" },
-    ])
+    environment = concat(
+      local.common_python_environment,
+      local.active_qualification_environment,
+      [{ name = "AI_FDE_RUNTIME_ROLE", value = "api" }],
+      var.worker_engagement_id == null ? [] : [
+        { name = "AI_FDE_WORKER_ENGAGEMENT_ID", value = var.worker_engagement_id },
+      ],
+    )
     secrets                = local.api_secrets
     readonlyRootFilesystem = true
     user                   = "10001"
@@ -209,8 +239,14 @@ resource "aws_ecs_task_definition" "api" {
 
   lifecycle {
     precondition {
-      condition     = !var.sanitized_data_enabled || var.deployment_validation_id != null
-      error_message = "Sanitized data requires a signed deployment validation identifier."
+      condition     = !var.sanitized_data_enabled || var.active_qualification_record_version_id != null
+      error_message = "Sanitized data requires the qualifier's exact immutable secret version."
+    }
+    precondition {
+      condition = !var.sanitized_data_enabled || (
+        var.pending_qualification_record_version_id == var.active_qualification_record_version_id
+      )
+      error_message = "Activation requires pending and active qualification versions to match exactly."
     }
   }
 }
@@ -228,9 +264,21 @@ resource "aws_ecs_task_definition" "worker" {
     image              = var.worker_image
     essential          = true
     versionConsistency = "enabled"
-    environment = concat(local.common_python_environment, [
-      { name = "AI_FDE_RUNTIME_ROLE", value = "worker" },
-    ])
+    environment = concat(
+      local.common_python_environment,
+      local.active_qualification_environment,
+      [
+        { name = "AI_FDE_RUNTIME_ROLE", value = "worker" },
+        { name = "AI_FDE_DATABASE_AUTH_MODE", value = "rds-iam" },
+        {
+          name  = "AI_FDE_DATABASE_URL"
+          value = "postgresql+psycopg://${local.worker_database_user}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}?sslmode=verify-full&sslrootcert=${local.rds_ca_bundle_path}"
+        },
+      ],
+      var.worker_engagement_id == null ? [] : [
+        { name = "AI_FDE_WORKER_ENGAGEMENT_ID", value = var.worker_engagement_id },
+      ],
+    )
     secrets                = local.worker_secrets
     readonlyRootFilesystem = true
     user                   = "10001"
@@ -244,6 +292,17 @@ resource "aws_ecs_task_definition" "worker" {
       }
     }
   }])
+
+  lifecycle {
+    precondition {
+      condition     = !var.sanitized_data_enabled || var.worker_engagement_id != null
+      error_message = "Sanitized data requires one exact worker_engagement_id evidence boundary."
+    }
+    precondition {
+      condition     = startswith(local.worker_database_user, "ai_fde_worker_") && length(local.worker_database_user) == 26
+      error_message = "The worker database login must be release-scoped."
+    }
+  }
 }
 
 resource "aws_ecs_task_definition" "migration" {
@@ -260,9 +319,14 @@ resource "aws_ecs_task_definition" "migration" {
     essential          = true
     versionConsistency = "enabled"
     command            = ["python", "scripts/bootstrap_production_database.py"]
-    environment = concat(local.common_python_environment, [
-      { name = "AI_FDE_RUNTIME_ROLE", value = "migration" },
-    ])
+    environment = concat(
+      local.common_python_environment,
+      local.pending_qualification_environment,
+      [{ name = "AI_FDE_RUNTIME_ROLE", value = "migration" }],
+      var.worker_engagement_id == null ? [] : [
+        { name = "AI_FDE_WORKER_ENGAGEMENT_ID", value = var.worker_engagement_id },
+      ],
+    )
     secrets                = local.migration_secrets
     readonlyRootFilesystem = true
     user                   = "10001"
@@ -291,7 +355,7 @@ resource "aws_ecs_service" "web" {
   network_configuration {
     assign_public_ip = false
     subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.tasks.id]
+    security_groups  = [aws_security_group.web_tasks.id]
   }
   load_balancer {
     target_group_arn = aws_lb_target_group.web.arn
@@ -315,7 +379,7 @@ resource "aws_ecs_service" "api" {
   network_configuration {
     assign_public_ip = false
     subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.tasks.id]
+    security_groups  = [aws_security_group.api_tasks.id]
   }
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
@@ -337,7 +401,7 @@ resource "aws_ecs_service" "worker" {
   }
   network_configuration {
     assign_public_ip = false
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.tasks.id]
+    subnets          = aws_subnet.worker_private[*].id
+    security_groups  = [aws_security_group.worker_tasks.id]
   }
 }

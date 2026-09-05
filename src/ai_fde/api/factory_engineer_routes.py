@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated, NoReturn
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from ai_fde.api.dependencies import (
     EngagementWriteDependency,
     OperatorDependency,
     SessionDependency,
+    SettingsDependency,
 )
 from ai_fde.api.factory_engineer_schemas import (
     CustomerFactoryModelCreateRequest,
@@ -22,6 +24,7 @@ from ai_fde.api.factory_engineer_schemas import (
     DeploymentPackageApprovalRequest,
     DeploymentPackageCreateRequest,
     DeploymentPackageResponse,
+    FactoryHandoffPrerequisitesResponse,
     FactoryHandoffWorkspaceResponse,
     FactoryOpportunityCreateRequest,
     FactoryOpportunityResponse,
@@ -33,8 +36,10 @@ from ai_fde.api.factory_engineer_schemas import (
     RetrievalGrantCreateRequest,
     RetrievalGrantResponse,
 )
+from ai_fde.config import Settings
 from ai_fde.db import operator_session
 from ai_fde.models import Operator
+from ai_fde.modules.design_partner.service import DesignPartnerQualificationError
 from ai_fde.modules.factory_engineer.models import (
     CustomerFactoryModelVersion,
     FactoryDeploymentPackageVersion,
@@ -70,6 +75,7 @@ from ai_fde.modules.factory_engineer.service import (
     create_deployment_package,
     create_factory_opportunity,
     create_readiness_assessment,
+    get_factory_handoff_prerequisites,
     publish_deployment_package,
     reject_deployment_package,
     reject_factory_opportunity,
@@ -146,6 +152,35 @@ def get_factory_handoff_workspace_endpoint(
             if latest_retrieval is not None
             else None
         ),
+    )
+
+
+@router.get(
+    "/engagements/{engagement_id}/factory-handoff/prerequisites",
+    response_model=FactoryHandoffPrerequisitesResponse,
+)
+def get_factory_handoff_prerequisites_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
+) -> FactoryHandoffPrerequisitesResponse:
+    try:
+        prerequisites = get_factory_handoff_prerequisites(session, engagement_id)
+    except FactoryEngineerNotFoundError as exc:
+        _raise_domain_error(exc)
+    engagement = prerequisites.engagement
+    return FactoryHandoffPrerequisitesResponse(
+        engagement_id=engagement.id,
+        organization_key=engagement.slug,
+        organization_label=engagement.name,
+        workflow_name=engagement.workflow_name,
+        primary_outcome=engagement.primary_outcome,
+        evidence_refs=prerequisites.evidence_refs,
+        verified_claim_refs=prerequisites.verified_claim_refs,
+        current_workflow_ref=prerequisites.current_workflow_ref,
+        target_workflow_ref=prerequisites.target_workflow_ref,
+        economic_case_ref=prerequisites.economic_case_ref,
+        implementation_artifact_refs=prerequisites.implementation_artifact_refs,
     )
 
 
@@ -531,7 +566,17 @@ def issue_retrieval_grant_endpoint(
     session: SessionDependency,
     operator: OperatorDependency,
     _access: EngagementOwnerDependency,
+    settings: SettingsDependency,
 ) -> IssuedRetrievalGrantResponse:
+    if settings.env != "development":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Package-retrieval credentials are never returned by a deployed API. "
+                "Provision them with deployment administration directly into the "
+                "receiving service's secret manager."
+            ),
+        )
     try:
         if payload.service_operator_id is not None:
             existing_service_operator = session.get(Operator, payload.service_operator_id)
@@ -589,6 +634,7 @@ def revoke_retrieval_grant_endpoint(
 def retrieve_published_package_endpoint(
     package_id: UUID,
     package_version: Annotated[int, Path(ge=1, le=2_147_483_647)],
+    settings: SettingsDependency,
     authorization: Annotated[str | None, Header()] = None,
     x_correlation_id: Annotated[UUID | None, Header()] = None,
 ) -> Response:
@@ -628,6 +674,12 @@ def retrieve_published_package_endpoint(
             package_id=package_id,
             package_version=package_version,
             principal=authentication.principal,
+            runtime_authority_check=lambda timestamp: (
+                _require_sanitized_retrieval_runtime_authority(
+                    settings,
+                    now=timestamp,
+                )
+            ),
             correlation_id=correlation_id,
         )
         if decision.allowed and decision.package is not None:
@@ -768,15 +820,42 @@ def _bearer_token(authorization: str | None) -> str | None:
 
 
 def _retrieval_denial(result: str) -> tuple[int, str, str]:
+    if result in {"INVALID_TOKEN", "REVOKED_TOKEN", "EXPIRED_TOKEN"}:
+        return 401, result, "The package-retrieval credential is not authorized."
+    if result == "INVALID_SCOPE":
+        return 403, result, "The package-retrieval credential is not authorized."
     if result in {"NOT_FOUND", "ENGAGEMENT_UNAVAILABLE"}:
         return 404, "PACKAGE_NOT_FOUND", "The package version is unavailable."
     if result == "DENIED_STALE":
         return 410, "PACKAGE_STALE", "The package version is stale."
     if result == "DENIED_REVOKED":
         return 410, "PACKAGE_REVOKED", "The package version is revoked."
+    if result == "DENIED_QUALIFICATION":
+        return (
+            410,
+            "PACKAGE_QUALIFICATION_WITHDRAWN",
+            "The package version is outside the current design-partner qualification.",
+        )
     if result == "DENIED_NOT_PUBLISHED":
         return 409, "PACKAGE_NOT_PUBLISHED", "The package version is not published."
     return 503, "PACKAGE_INTEGRITY_FAILED", "The package integrity check failed."
+
+
+def _require_sanitized_retrieval_runtime_authority(
+    settings: Settings,
+    *,
+    now: datetime,
+) -> None:
+    if not settings.sanitized_data_enabled:
+        raise DesignPartnerQualificationError(
+            "Sanitized package retrieval is not enabled for this runtime."
+        )
+    try:
+        settings.verified_deployment_qualification(now=now)
+    except ValueError as exc:
+        raise DesignPartnerQualificationError(
+            "The deployment qualification is not current."
+        ) from exc
 
 
 def _retrieval_error(

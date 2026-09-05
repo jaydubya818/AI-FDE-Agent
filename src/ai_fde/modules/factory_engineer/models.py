@@ -395,7 +395,7 @@ class PackageRetrievalEvent(Base, UUIDPrimaryKeyMixin):
         ),
         CheckConstraint(
             "result IN ('RETRIEVED', 'DENIED_NOT_PUBLISHED', 'DENIED_STALE', "
-            "'DENIED_REVOKED', 'DENIED_INTEGRITY', 'NOT_FOUND')",
+            "'DENIED_REVOKED', 'DENIED_QUALIFICATION', 'DENIED_INTEGRITY', 'NOT_FOUND')",
             name="valid_result",
         ),
         CheckConstraint(

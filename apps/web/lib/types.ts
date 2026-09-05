@@ -26,6 +26,30 @@ export type EngagementWorkspace = {
   };
 };
 
+export type DesignPartnerAuthorizedUser = {
+  operator_id: string;
+  display_name: string;
+  role: "owner" | "operator" | "viewer";
+};
+
+export type DesignPartnerQualification = {
+  id: string;
+  engagement_id: string;
+  partner_key: string;
+  organization: string;
+  status: "ACTIVE" | "SUSPENDED" | "REVOKED";
+  qualification_state: "CONFIGURED" | "IN_PROGRESS" | "BLOCKED" | "QUALIFIED";
+  authorized_users: DesignPartnerAuthorizedUser[];
+  authorized_data_source_keys: string[];
+  authorized_repository_refs: string[];
+  allowed_workflow_classes: string[];
+  data_classification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED";
+  retention_days: number;
+  authorization_basis_ref: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Evidence = {
   id: string;
   engagement_id: string;
@@ -35,6 +59,10 @@ export type Evidence = {
   byte_count: number;
   source_type: BackendEnum<"evidenceSourceType">;
   source_timestamp: string | null;
+  design_partner_qualification_id: string | null;
+  authorized_source_key: string | null;
+  authorized_workflow_class: string | null;
+  data_classification: string | null;
   status: BackendEnum<"evidenceStatus">;
   error_message: string | null;
   created_at: string;
@@ -352,27 +380,35 @@ export type FactorySourceReference = {
   sha256: string;
 };
 
+export type FactoryImmutableVersionReference = {
+  id: string;
+  version: number;
+  digest: string;
+};
+
+export type TraceableFactoryFact = {
+  key: string;
+  label: string;
+  description: string;
+  provenance_refs: FactorySourceReference[];
+  attributes: Record<string, unknown>;
+};
+
 export type CustomerFactoryModel = {
   id: string;
   engagement_id: string;
   version_number: number;
   status: BackendEnum<"customerFactoryModelStatus">;
-  organization: {
-    key: string;
-    label: string;
-    description: string;
-    provenance_refs: FactorySourceReference[];
-    attributes: Record<string, unknown>;
-  };
-  systems: Array<Record<string, unknown>>;
-  repositories: Array<Record<string, unknown>>;
-  environments: Array<Record<string, unknown>>;
-  workflows: Array<Record<string, unknown>>;
-  policies: Array<Record<string, unknown>>;
-  authority_boundaries: Array<Record<string, unknown>>;
-  constraints: Array<Record<string, unknown>>;
-  risks: Array<Record<string, unknown>>;
-  baselines: Array<Record<string, unknown>>;
+  organization: TraceableFactoryFact;
+  systems: TraceableFactoryFact[];
+  repositories: TraceableFactoryFact[];
+  environments: TraceableFactoryFact[];
+  workflows: TraceableFactoryFact[];
+  policies: TraceableFactoryFact[];
+  authority_boundaries: TraceableFactoryFact[];
+  constraints: TraceableFactoryFact[];
+  risks: TraceableFactoryFact[];
+  baselines: TraceableFactoryFact[];
   evidence_refs: FactorySourceReference[];
   verified_claim_refs: FactorySourceReference[];
   assumption_refs: FactorySourceReference[];
@@ -391,7 +427,7 @@ export type FactoryOpportunity = {
   status: BackendEnum<"factoryOpportunityStatus">;
   name: string;
   description: string;
-  source_workflow_ref: { id: string; version: number; digest: string };
+  source_workflow_ref: FactoryImmutableVersionReference;
   customer_factory_model_id: string;
   customer_factory_model_version: number;
   value_score: number;
@@ -607,6 +643,103 @@ export type FactoryHandoffWorkspace = {
   latest_retrieval: PackageRetrievalEvent | null;
 };
 
+export type FactoryHandoffPrerequisites = {
+  engagement_id: string;
+  organization_key: string;
+  organization_label: string;
+  workflow_name: string;
+  primary_outcome: string;
+  evidence_refs: FactorySourceReference[];
+  verified_claim_refs: FactorySourceReference[];
+  current_workflow_ref: FactoryImmutableVersionReference | null;
+  target_workflow_ref: FactoryImmutableVersionReference | null;
+  economic_case_ref: FactorySourceReference | null;
+  implementation_artifact_refs: FactorySourceReference[];
+};
+
+export type CustomerFactoryModelInput = Pick<
+  CustomerFactoryModel,
+  | "organization"
+  | "systems"
+  | "repositories"
+  | "environments"
+  | "workflows"
+  | "policies"
+  | "authority_boundaries"
+  | "constraints"
+  | "risks"
+  | "baselines"
+  | "evidence_refs"
+  | "verified_claim_refs"
+  | "assumption_refs"
+  | "factory_opportunity_refs"
+>;
+
+export type FactoryOpportunityFactors = {
+  workflow_frequency: number;
+  human_effort: number;
+  cycle_time: number;
+  repeatability: number;
+  standardization: number;
+  evidence_quality: number;
+  deterministic_verifiability: number;
+  blast_radius: number;
+  system_accessibility: number;
+  data_sensitivity: number;
+  implementation_complexity: number;
+  expected_economic_value: number;
+  autonomy_potential: number;
+};
+
+export type FactoryOpportunityInput = {
+  customer_factory_model_id: string;
+  opportunity: {
+    opportunity_key: string;
+    name: string;
+    description: string;
+    source_workflow_ref: FactoryImmutableVersionReference;
+    factors: FactoryOpportunityFactors;
+    economics_ref: FactorySourceReference;
+    evidence_refs: FactorySourceReference[];
+    blockers: string[];
+  };
+};
+
+export type ReadinessCriterionInput = {
+  key: string;
+  label: string;
+  satisfied: boolean;
+  blocking: boolean;
+  explanation: string;
+  basis_refs: FactorySourceReference[];
+  next_action: string | null;
+};
+
+export type ReadinessStageInput = {
+  stage: FDLCReadinessStage["stage"];
+  criteria: ReadinessCriterionInput[];
+  risks: string[];
+  decisions: FactorySourceReference[];
+  required_artifacts: string[];
+  owner: string | null;
+};
+
+export type ReadinessAssessmentInput = {
+  customer_factory_model_id: string;
+  selected_opportunity_id: string;
+  current_workflow_id: string;
+  target_workflow_id: string;
+  assessment: { stages: ReadinessStageInput[] };
+};
+
+export type DeploymentPackageInput = {
+  customer_factory_model_id: string;
+  readiness_assessment_id: string;
+  factory_opportunity_id: string;
+  target: DeploymentPackage["target"];
+  deployment_intent: DeploymentPackage["deployment_intent"];
+};
+
 type AssertNoMissingBackendFields<Value extends Record<string, never>> = Value;
 
 export type BackendResponseContractParity = AssertNoMissingBackendFields<{
@@ -620,6 +753,10 @@ export type BackendResponseContractParity = AssertNoMissingBackendFields<{
   deploymentPackage: MissingBackendFields<
     "deploymentPackage",
     DeploymentPackage
+  >;
+  designPartnerQualification: MissingBackendFields<
+    "designPartnerQualification",
+    DesignPartnerQualification
   >;
   deliveryScorecard: MissingBackendFields<
     "deliveryScorecard",
@@ -645,6 +782,10 @@ export type BackendResponseContractParity = AssertNoMissingBackendFields<{
   >;
   entity: MissingBackendFields<"entity", Entity>;
   evidence: MissingBackendFields<"evidence", Evidence>;
+  factoryHandoffPrerequisites: MissingBackendFields<
+    "factoryHandoffPrerequisites",
+    FactoryHandoffPrerequisites
+  >;
   factoryHandoffWorkspace: MissingBackendFields<
     "factoryHandoffWorkspace",
     FactoryHandoffWorkspace

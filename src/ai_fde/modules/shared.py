@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from ai_fde.models import AuditEvent, OutboxEvent
+from ai_fde.telemetry import current_correlation_id
 
 
 def record_audit(
@@ -18,6 +20,7 @@ def record_audit(
     target_id: UUID,
     detail: dict[str, Any] | None = None,
     actor_type: str = "operator",
+    correlation_id: UUID | None = None,
 ) -> AuditEvent:
     event = AuditEvent(
         engagement_id=engagement_id,
@@ -27,6 +30,7 @@ def record_audit(
         target_type=target_type,
         target_id=target_id,
         detail=detail or {},
+        correlation_id=correlation_id or current_correlation_id() or uuid.uuid4(),
     )
     session.add(event)
     return event

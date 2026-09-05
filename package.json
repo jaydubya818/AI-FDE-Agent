@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently --kill-others --names api,worker,web --prefix-colors blue,magenta,green \"pnpm dev:api\" \"pnpm dev:worker\" \"pnpm dev:web\"",
     "dev:api": "PYTHONPATH=src uv run uvicorn apps.api.main:app --reload --port 8000 --no-access-log",
-    "dev:worker": "PYTHONPATH=src uv run python -m ai_fde.worker",
+    "dev:worker": "AI_FDE_WORKER_HEARTBEAT_ENABLED=false PYTHONPATH=src uv run python -m ai_fde.worker",
     "dev:web": "pnpm --dir apps/web dev",
     "build": "pnpm --dir apps/web build",
     "lint": "pnpm --dir apps/web lint",

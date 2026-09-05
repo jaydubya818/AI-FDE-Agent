@@ -18,6 +18,7 @@ from ai_fde.adapters.extraction import PREDICATES
 from ai_fde.api.factory_engineer_schemas import (
     CustomerFactoryModelResponse,
     DeploymentPackageResponse,
+    FactoryHandoffPrerequisitesResponse,
     FactoryHandoffWorkspaceResponse,
     FactoryOpportunityResponse,
     FDLCReadinessAssessmentResponse,
@@ -29,6 +30,7 @@ from ai_fde.api.schemas import (
     ContradictionResolveRequest,
     ContradictionResponse,
     DeliveryScorecardResponse,
+    DesignPartnerQualificationResponse,
     EconomicCaseResponse,
     EngagementAssessmentResponse,
     EngagementDataLifecycleResponse,
@@ -60,6 +62,7 @@ from ai_fde.models import (
     WorkflowStep,
     WorkflowVersion,
 )
+from ai_fde.modules.design_partner.models import DesignPartnerQualification
 from ai_fde.modules.factory_engineer.models import (
     CustomerFactoryModelVersion,
     FactoryDeploymentPackageVersion,
@@ -78,6 +81,7 @@ RESPONSE_MODELS: dict[str, type[BaseModel]] = {
     "customerFactoryModel": CustomerFactoryModelResponse,
     "deploymentPackage": DeploymentPackageResponse,
     "deliveryScorecard": DeliveryScorecardResponse,
+    "designPartnerQualification": DesignPartnerQualificationResponse,
     "economicCase": EconomicCaseResponse,
     "engagement": EngagementResponse,
     "engagementAssessment": EngagementAssessmentResponse,
@@ -86,6 +90,7 @@ RESPONSE_MODELS: dict[str, type[BaseModel]] = {
     "engagementWorkspace": EngagementWorkspaceResponse,
     "entity": EntityResponse,
     "evidence": EvidenceResponse,
+    "factoryHandoffPrerequisites": FactoryHandoffPrerequisitesResponse,
     "factoryHandoffWorkspace": FactoryHandoffWorkspaceResponse,
     "factoryOpportunity": FactoryOpportunityResponse,
     "fdlcReadinessAssessment": FDLCReadinessAssessmentResponse,
@@ -142,11 +147,16 @@ def contract() -> dict[str, object]:
         "contradictionStatus": _check_values(Contradiction, "status"),
         "customerFactoryModelStatus": _check_values(CustomerFactoryModelVersion, "status"),
         "deploymentPackageStatus": _check_values(FactoryDeploymentPackageVersion, "status"),
+        "designPartnerDataClassification": _check_values(
+            DesignPartnerQualification, "data_classification"
+        ),
+        "designPartnerQualificationState": _check_values(
+            DesignPartnerQualification, "qualification_state"
+        ),
+        "designPartnerQualificationStatus": _check_values(DesignPartnerQualification, "status"),
         "economicCaseStatus": _check_values(EconomicCase, "status"),
         "engagementDataClassification": _check_values(Engagement, "data_classification"),
-        "engagementDataLifecycleStatus": _check_values(
-            Engagement, "data_lifecycle_status"
-        ),
+        "engagementDataLifecycleStatus": _check_values(Engagement, "data_lifecycle_status"),
         "engagementLifecycleStage": _check_values(Engagement, "lifecycle_stage"),
         "entityType": _check_values(OperatingEntity, "entity_type"),
         "evidenceSourceType": _check_values(EvidenceAsset, "source_type"),
