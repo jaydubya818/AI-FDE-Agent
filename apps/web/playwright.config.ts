@@ -22,7 +22,7 @@ export default defineConfig({
     ? undefined
     : {
         command: usesMockApi
-          ? "NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=false NEXT_PUBLIC_MISSION_CONTROL_URL=https://mission-control.example pnpm dev"
+          ? "NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=false NEXT_PUBLIC_MISSION_CONTROL_URL=https://mission-control.example pnpm dev --hostname 127.0.0.1 --port 3001"
           : "pnpm --dir ../.. dev",
         reuseExistingServer: true,
         timeout: 120_000,
