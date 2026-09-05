@@ -10,6 +10,7 @@
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
     "test:e2e:alpha": "playwright test tests/e2e/internal-alpha.spec.ts",
     "test:e2e:golden": "playwright test tests/e2e/golden-path.spec.ts",
+    "test:e2e:partner": "AI_FDE_PLAYWRIGHT_MOCK_API=true playwright test tests/e2e/design-partner-handoff.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -150,7 +150,9 @@ PYTHONPATH=src uv run uvicorn apps.api.main:app \
   --no-access-log >"${demo_log_directory}/api.log" 2>&1 &
 demo_api_pid=$!
 
-AI_FDE_RUNTIME_ROLE=worker PYTHONPATH=src uv run python -m ai_fde.worker \
+AI_FDE_RUNTIME_ROLE=worker \
+AI_FDE_WORKER_HEARTBEAT_ENABLED=false \
+PYTHONPATH=src uv run python -m ai_fde.worker \
   >"${demo_log_directory}/worker.log" 2>&1 &
 demo_worker_pid=$!
 

@@ -95,6 +95,23 @@ export const BACKEND_CONTRACT = {
       "REVOKED",
       "STALE"
     ],
+    "designPartnerDataClassification": [
+      "PUBLIC",
+      "INTERNAL",
+      "CONFIDENTIAL",
+      "RESTRICTED"
+    ],
+    "designPartnerQualificationState": [
+      "CONFIGURED",
+      "IN_PROGRESS",
+      "BLOCKED",
+      "QUALIFIED"
+    ],
+    "designPartnerQualificationStatus": [
+      "ACTIVE",
+      "SUSPENDED",
+      "REVOKED"
+    ],
     "economicCaseStatus": [
       "draft",
       "approved",
@@ -183,6 +200,7 @@ export const BACKEND_CONTRACT = {
       "DENIED_NOT_PUBLISHED",
       "DENIED_STALE",
       "DENIED_REVOKED",
+      "DENIED_QUALIFICATION",
       "DENIED_INTEGRITY",
       "NOT_FOUND"
     ],
@@ -306,6 +324,23 @@ export const BACKEND_CONTRACT = {
       "state_reason",
       "created_at"
     ],
+    "designPartnerQualification": [
+      "id",
+      "engagement_id",
+      "partner_key",
+      "organization",
+      "status",
+      "qualification_state",
+      "authorized_users",
+      "authorized_data_source_keys",
+      "authorized_repository_refs",
+      "allowed_workflow_classes",
+      "data_classification",
+      "retention_days",
+      "authorization_basis_ref",
+      "created_at",
+      "updated_at"
+    ],
     "economicCase": [
       "id",
       "version_number",
@@ -394,9 +429,26 @@ export const BACKEND_CONTRACT = {
       "byte_count",
       "source_type",
       "source_timestamp",
+      "design_partner_qualification_id",
+      "authorized_source_key",
+      "authorized_workflow_class",
+      "data_classification",
       "status",
       "error_message",
       "created_at"
+    ],
+    "factoryHandoffPrerequisites": [
+      "engagement_id",
+      "organization_key",
+      "organization_label",
+      "workflow_name",
+      "primary_outcome",
+      "evidence_refs",
+      "verified_claim_refs",
+      "current_workflow_ref",
+      "target_workflow_ref",
+      "economic_case_ref",
+      "implementation_artifact_refs"
     ],
     "factoryHandoffWorkspace": [
       "customer_model",

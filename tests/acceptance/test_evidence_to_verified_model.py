@@ -11,7 +11,7 @@ from ai_fde.db import operator_session
 from ai_fde.models import CandidateClaim, EvidenceAsset, Job, Operator
 from ai_fde.modules.engagements.service import create_engagement, get_engagement_counts
 from ai_fde.modules.evidence.service import create_evidence_asset
-from ai_fde.modules.knowledge.jobs import lease_next_job, process_job
+from ai_fde.modules.knowledge.jobs import EvidenceIntegrityError, lease_next_job, process_job
 from ai_fde.modules.knowledge.review import evidence_for_claim, review_claim
 from ai_fde.modules.operating_model.service import list_entities, list_verified_assertions
 from tests.conftest import OperatorFixture
@@ -45,11 +45,13 @@ def test_complete_evidence_to_verified_model_lifecycle(
         )
         asset_id = asset.id
         assert asset.status == "queued"
+        assert asset.storage_version_id is not None
 
     with operator_session(test_operator.id) as session:
         job = lease_next_job(session, engagement_id, lease_seconds=30)
         assert job is not None
-        process_job(session, store, job)
+        assert job.lease_token is not None
+        process_job(session, store, job, lease_token=job.lease_token)
         assert job.status == "completed"
 
     with operator_session(test_operator.id) as session:
@@ -123,3 +125,72 @@ def test_complete_evidence_to_verified_model_lifecycle(
         completed_job = session.scalar(select(Job).where(Job.engagement_id == engagement_id))
         assert completed_job is not None
         assert completed_job.status == "completed"
+
+
+@pytest.mark.integration
+def test_legacy_synthetic_evidence_without_a_version_pin_is_hash_verified(
+    test_operator: OperatorFixture,
+) -> None:
+    store = InMemoryEvidenceStore()
+    with operator_session(test_operator.id) as session:
+        operator = session.get_one(Operator, test_operator.id)
+        engagement = create_engagement(
+            session,
+            operator=operator,
+            name="Legacy synthetic provenance",
+            primary_outcome="Keep safe fixture compatibility during the version-pin rollout.",
+        )
+        asset = create_evidence_asset(
+            session,
+            store,
+            engagement_id=engagement.id,
+            operator=operator,
+            file_name="legacy.md",
+            content_type="text/markdown",
+            content=b"Synthetic fixture content remains hash verified.",
+            source_type="fixture",
+        )
+        engagement_id = engagement.id
+        asset_id = asset.id
+        storage_key = asset.storage_key
+        asset.storage_version_id = None
+
+    with operator_session(test_operator.id) as session:
+        job = lease_next_job(session, engagement_id, lease_seconds=30)
+        assert job is not None
+        assert job.lease_token is not None
+        process_job(session, store, job, lease_token=job.lease_token)
+        assert job.status == "completed"
+
+    store.put(
+        storage_key,
+        b"A changed current object must not pass the persisted digest.",
+        "text/markdown",
+    )
+    with operator_session(test_operator.id) as session:
+        asset_record = session.get_one(EvidenceAsset, asset_id)
+        asset_record.status = "queued"
+        session.add(
+            Job(
+                engagement_id=engagement_id,
+                kind="ingest_evidence",
+                payload={"evidence_asset_id": str(asset_id)},
+                idempotency_key=f"evidence:{asset_id}:legacy-integrity-regression",
+            )
+        )
+
+    with pytest.raises(EvidenceIntegrityError), operator_session(test_operator.id) as session:
+        job = session.scalar(
+            select(Job)
+            .where(
+                Job.engagement_id == engagement_id,
+                Job.status == "queued",
+            )
+            .order_by(Job.created_at.desc())
+        )
+        assert job is not None
+        leased = lease_next_job(session, engagement_id, lease_seconds=30)
+        assert leased is not None
+        assert leased.id == job.id
+        assert leased.lease_token is not None
+        process_job(session, store, leased, lease_token=leased.lease_token)

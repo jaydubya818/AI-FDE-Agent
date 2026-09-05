@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -9,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ai_fde.adapters.storage import EvidenceStore
+from ai_fde.adapters.storage import EvidenceObjectVersionNotFoundError, EvidenceStore
 from ai_fde.models import (
     CandidateClaim,
     ClaimEvidence,
@@ -20,16 +23,29 @@ from ai_fde.models import (
     Job,
     Operator,
 )
+from ai_fde.modules.design_partner.service import (
+    CustomerDataProcessingDeniedError,
+    require_qualified_evidence_processing,
+)
 from ai_fde.modules.evidence.parser import ParsedSegment, parse_evidence
 from ai_fde.modules.knowledge.extractor import (
     DeterministicFixtureExtractor,
     ExtractionProvider,
+    ExtractionResult,
 )
 from ai_fde.modules.shared import publish_domain_event, record_audit
 
 
 class JobProcessingError(RuntimeError):
     pass
+
+
+class JobLeaseLostError(JobProcessingError):
+    """The worker no longer owns the exact job attempt it tried to mutate."""
+
+
+class EvidenceIntegrityError(JobProcessingError):
+    """Persisted evidence bytes do not match their immutable provenance metadata."""
 
 
 class ExtractionBudgetExceededError(JobProcessingError):
@@ -80,10 +96,15 @@ def process_job(
     session: Session,
     store: EvidenceStore,
     job: Job,
+    *,
+    lease_token: UUID,
     extractor: ExtractionProvider | None = None,
     actor: Operator | None = None,
     budget: ExtractionJobBudget | None = None,
+    provider_allowed_data_classifications: set[str] | None = None,
+    runtime_authority_check: Callable[[datetime], None] | None = None,
 ) -> None:
+    job = _lock_active_lease(session, job.id, lease_token)
     if job.kind != "ingest_evidence":
         raise JobProcessingError(f"Unsupported job kind: {job.kind}")
 
@@ -94,10 +115,38 @@ def process_job(
 
     resolved_extractor = extractor or DeterministicFixtureExtractor()
     resolved_budget = budget or ExtractionJobBudget()
-    asset.status = "processing"
-    asset.error_message = None
-    job.progress = 15
-    content = store.get(asset.storage_key)
+    allowed_classifications = provider_allowed_data_classifications or set()
+    qualified_customer_data = _require_customer_data_processing_authority(
+        session,
+        asset=asset,
+        provider_name=resolved_extractor.name,
+        provider_allowed_data_classifications=allowed_classifications,
+        runtime_authority_check=runtime_authority_check,
+    )
+    storage_version_id = asset.storage_version_id
+    if qualified_customer_data and storage_version_id is None:
+        raise EvidenceIntegrityError(
+            "Qualified evidence is missing its immutable object version."
+        )
+    try:
+        content = store.get(asset.storage_key, version_id=storage_version_id)
+    except EvidenceObjectVersionNotFoundError as exc:
+        raise EvidenceIntegrityError(
+            "The immutable evidence object version is unavailable."
+        ) from exc
+    actual_content_hash = hashlib.sha256(content).hexdigest()
+    if not hmac.compare_digest(actual_content_hash, asset.content_hash):
+        raise EvidenceIntegrityError(
+            "The immutable evidence object version failed integrity verification."
+        )
+    if qualified_customer_data:
+        _require_customer_data_processing_authority(
+            session,
+            asset=asset,
+            provider_name=resolved_extractor.name,
+            provider_allowed_data_classifications=allowed_classifications,
+            runtime_authority_check=runtime_authority_check,
+        )
     parsed_segments = parse_evidence(content, asset.content_type, asset.file_name)
     _enforce_extraction_budget(
         parsed_segments,
@@ -110,6 +159,15 @@ def process_job(
         select(EvidenceSegment.id).where(EvidenceSegment.evidence_asset_id == asset.id).limit(1)
     )
     if existing_segment is not None:
+        if qualified_customer_data:
+            _require_customer_data_processing_authority(
+                session,
+                asset=asset,
+                provider_name=resolved_extractor.name,
+                provider_allowed_data_classifications=allowed_classifications,
+                runtime_authority_check=runtime_authority_check,
+                lock_for_update=True,
+            )
         _complete_existing_job(session, job, asset)
         return
 
@@ -123,39 +181,41 @@ def process_job(
         model_id=resolved_extractor.model_id,
         prompt_version=resolved_extractor.prompt_version,
         input_hash=asset.content_hash,
+        input_tokens=0,
+        output_tokens=0,
+        latency_ms=0,
         result_code="running",
         status="running",
     )
-    session.add(extraction_run)
-    session.flush()
-
-    created_claims: list[CandidateClaim] = []
+    extracted_segments: list[tuple[ParsedSegment, ExtractionResult]] = []
     for parsed in parsed_segments:
-        segment = EvidenceSegment(
-            engagement_id=job.engagement_id,
-            evidence_asset_id=asset.id,
-            ordinal=parsed.ordinal,
-            content=parsed.content,
-            start_offset=parsed.start_offset,
-            end_offset=parsed.end_offset,
-            locator=parsed.locator,
-            parser_name=parsed.parser_name,
-            parser_version=parsed.parser_version,
-        )
-        session.add(segment)
-        session.flush()
-
         image_format: Literal["png", "jpeg"] | None = None
         image_bytes = None
         if parsed.modality == "image":
             image_bytes = content
             image_format = "png" if asset.file_name.casefold().endswith(".png") else "jpeg"
+        if qualified_customer_data:
+            _require_customer_data_processing_authority(
+                session,
+                asset=asset,
+                provider_name=resolved_extractor.name,
+                provider_allowed_data_classifications=allowed_classifications,
+                runtime_authority_check=runtime_authority_check,
+            )
         result = resolved_extractor.extract(
             parsed.content,
             image_bytes=image_bytes,
             image_format=image_format,
             max_output_tokens=resolved_extractor.max_output_tokens,
         )
+        if qualified_customer_data:
+            _require_customer_data_processing_authority(
+                session,
+                asset=asset,
+                provider_name=resolved_extractor.name,
+                provider_allowed_data_classifications=allowed_classifications,
+                runtime_authority_check=runtime_authority_check,
+            )
         extraction_run.input_tokens += result.input_tokens
         extraction_run.output_tokens += result.output_tokens
         provider_tokens = extraction_run.input_tokens + extraction_run.output_tokens
@@ -172,6 +232,42 @@ def process_job(
                 raise JobProcessingError(
                     "An extracted claim did not resolve to exact stored evidence offsets."
                 )
+        extracted_segments.append((parsed, result))
+
+    if qualified_customer_data:
+        _require_customer_data_processing_authority(
+            session,
+            asset=asset,
+            provider_name=resolved_extractor.name,
+            provider_allowed_data_classifications=allowed_classifications,
+            runtime_authority_check=runtime_authority_check,
+            lock_for_update=True,
+        )
+
+    # Do not stage customer-derived database output until the final locked authority
+    # check succeeds. The aggregate locks remain held through the caller's commit.
+    asset.status = "processing"
+    asset.error_message = None
+    job.progress = 15
+    session.add(extraction_run)
+    session.flush()
+
+    created_claims: list[CandidateClaim] = []
+    for parsed, result in extracted_segments:
+        segment = EvidenceSegment(
+            engagement_id=job.engagement_id,
+            evidence_asset_id=asset.id,
+            ordinal=parsed.ordinal,
+            content=parsed.content,
+            start_offset=parsed.start_offset,
+            end_offset=parsed.end_offset,
+            locator=parsed.locator,
+            parser_name=parsed.parser_name,
+            parser_version=parsed.parser_version,
+        )
+        session.add(segment)
+        session.flush()
+        for extracted in result.claims:
             claim = CandidateClaim(
                 engagement_id=job.engagement_id,
                 extraction_run_id=extraction_run.id,
@@ -240,6 +336,51 @@ def process_job(
                 "claim_count": len(created_claims),
             },
         )
+    if qualified_customer_data:
+        # Deployment authority is wall-clock bounded and cannot be serialized by the
+        # database row locks. Recheck it after staging derived output so expiry during
+        # database work rolls the transaction back before the caller can commit.
+        _require_customer_data_processing_authority(
+            session,
+            asset=asset,
+            provider_name=resolved_extractor.name,
+            provider_allowed_data_classifications=allowed_classifications,
+            runtime_authority_check=runtime_authority_check,
+            lock_for_update=True,
+        )
+
+
+def _require_customer_data_processing_authority(
+    session: Session,
+    *,
+    asset: EvidenceAsset,
+    provider_name: str,
+    provider_allowed_data_classifications: set[str],
+    runtime_authority_check: Callable[[datetime], None] | None,
+    lock_for_update: bool = False,
+) -> bool:
+    decision_time = require_qualified_evidence_processing(
+        session,
+        asset=asset,
+        provider_name=provider_name,
+        provider_allowed_data_classifications=provider_allowed_data_classifications,
+        lock_for_update=lock_for_update,
+    )
+    if decision_time is None:
+        return False
+    if runtime_authority_check is None:
+        raise CustomerDataProcessingDeniedError(
+            "Customer-data processing runtime authorization is unavailable."
+        )
+    try:
+        runtime_authority_check(decision_time)
+    except CustomerDataProcessingDeniedError:
+        raise
+    except ValueError as exc:
+        raise CustomerDataProcessingDeniedError(
+            "Customer-data processing runtime authorization is no longer valid."
+        ) from exc
+    return True
 
 
 def _enforce_extraction_budget(
@@ -281,13 +422,23 @@ def fail_job(
     job_id: UUID,
     message: str,
     *,
+    lease_token: UUID,
     retryable: bool = True,
     result_code: str = "evidence_processing_failed",
     extractor: ExtractionProvider | None = None,
-) -> None:
-    job = session.get(Job, job_id)
+) -> bool:
+    job = session.scalar(
+        select(Job)
+        .where(
+            Job.id == job_id,
+            Job.status == "running",
+            Job.lease_token == lease_token,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if job is None:
-        return
+        return False
     job.error_message = message[:4000]
     job.leased_until = None
     if not retryable or job.attempts >= job.max_attempts:
@@ -319,6 +470,33 @@ def fail_job(
                         completed_at=datetime.now(UTC),
                     )
                 )
+    return True
+
+
+def _lock_active_lease(
+    session: Session,
+    job_id: UUID,
+    lease_token: UUID,
+    *,
+    now: datetime | None = None,
+) -> Job:
+    timestamp = now or datetime.now(UTC)
+    session.flush()
+    job = session.scalar(
+        select(Job)
+        .where(Job.id == job_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if (
+        job is None
+        or job.status != "running"
+        or job.lease_token != lease_token
+        or job.leased_until is None
+        or job.leased_until <= timestamp
+    ):
+        raise JobLeaseLostError("The evidence job lease is missing, expired, or superseded.")
+    return job
 
 
 def _complete_existing_job(session: Session, job: Job, asset: EvidenceAsset) -> None:

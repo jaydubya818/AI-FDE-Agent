@@ -1,26 +1,55 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
 import { CheckIcon } from "@/components/icons";
 import {
+  ApiError,
   approveDeploymentPackage,
+  approveCustomerFactoryModel,
   approveReadiness,
   approveSyntheticCustomerModel,
   assessSyntheticFactoryOpportunity,
   assessSyntheticReadiness,
+  createCustomerFactoryModel,
+  createDeploymentPackage,
+  createFactoryOpportunity,
+  createReadinessAssessment,
   generateSyntheticDeploymentPackage,
+  getDesignPartnerQualification,
+  getEconomics,
   getFactoryHandoffWorkspace,
+  getFactoryHandoffPrerequisites,
+  getImplementationPacket,
   publishDeploymentPackage,
   selectFactoryOpportunity,
   simulateMissionControlRetrieval,
   submitDeploymentPackage,
 } from "@/lib/api";
+import {
+  buildCustomerFactoryModelInput,
+  buildDeploymentPackageInput,
+  buildFactoryOpportunityInput,
+  buildReadinessAssessmentInput,
+  customerModelAuthorityReference,
+  DEFAULT_OPPORTUNITY_FACTORS,
+  humanize,
+  READINESS_CRITERIA,
+  READINESS_CRITERION_COUNT,
+  READINESS_STAGES,
+  readinessCriterionReviewKey,
+} from "@/lib/factory-handoff";
 import type {
+  DesignPartnerQualification,
   DeploymentPackage,
+  EconomicCase,
+  FactoryHandoffPrerequisites,
   FactoryHandoffWorkspace as FactoryHandoffState,
   FactoryOpportunity,
+  FactoryOpportunityFactors,
   FDLCReadinessStage,
+  ImplementationArtifact,
 } from "@/lib/types";
 
 type Progress = {
@@ -28,17 +57,26 @@ type Progress = {
   opportunity: boolean;
   readiness: boolean;
   package: boolean;
-  handoff: boolean;
+  missionControlImport: boolean;
 };
 
 type Notice = { tone: "success" | "error"; text: string } | null;
+
+type QualifiedContext = {
+  qualification: DesignPartnerQualification | null;
+  prerequisites: FactoryHandoffPrerequisites;
+  economics: EconomicCase | null;
+  artifacts: ImplementationArtifact[];
+};
+
+type Composer = "opportunity" | "readiness" | "package" | null;
 
 const EMPTY_PROGRESS: Progress = {
   customerModel: false,
   opportunity: false,
   readiness: false,
   package: false,
-  handoff: false,
+  missionControlImport: false,
 };
 
 function statusTone(status: string) {
@@ -66,14 +104,43 @@ function formatTimestamp(value: string | null) {
   }).format(new Date(value));
 }
 
+function missionControlDraftUrl(
+  deploymentPackage: DeploymentPackage | undefined,
+): string | null {
+  const configuredOrigin = process.env.NEXT_PUBLIC_MISSION_CONTROL_URL;
+  if (!configuredOrigin || deploymentPackage?.status !== "PUBLISHED") {
+    return null;
+  }
+  try {
+    const url = new URL("/v2/missions", configuredOrigin);
+    if (!["https:", "http:"].includes(url.protocol)) return null;
+    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+      return null;
+    }
+    url.searchParams.set("factoryPackageId", deploymentPackage.package_id);
+    url.searchParams.set(
+      "factoryPackageVersion",
+      String(deploymentPackage.package_version),
+    );
+    for (const codeScope of deploymentPackage.target.requested_code_scopes) {
+      url.searchParams.append("factoryCodeScope", codeScope);
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function FactoryHandoffWorkspace({
   engagementId,
   lifecycleVersion,
+  operatorId,
   synthetic,
   onProgress,
 }: {
   engagementId: string;
   lifecycleVersion: string;
+  operatorId: string;
   synthetic: boolean;
   onProgress: (progress: Progress) => void;
 }) {
@@ -81,10 +148,35 @@ export function FactoryHandoffWorkspace({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [qualifiedContext, setQualifiedContext] =
+    useState<QualifiedContext | null>(null);
+  const [composer, setComposer] = useState<Composer>(null);
 
   const load = useCallback(async () => {
-    const next = await getFactoryHandoffWorkspace(engagementId);
+    const nextPromise = getFactoryHandoffWorkspace(engagementId);
+    const contextPromise: Promise<QualifiedContext | null> = synthetic
+      ? Promise.resolve(null)
+      : Promise.all([
+          getFactoryHandoffPrerequisites(engagementId),
+          getEconomics(engagementId),
+          getImplementationPacket(engagementId),
+          getDesignPartnerQualification(engagementId).catch(
+            (reason: unknown) => {
+              if (reason instanceof ApiError && reason.status === 404) {
+                return null;
+              }
+              throw reason;
+            },
+          ),
+        ]).then(([prerequisites, economics, artifacts, qualification]) => ({
+          qualification,
+          prerequisites,
+          economics,
+          artifacts,
+        }));
+    const [next, context] = await Promise.all([nextPromise, contextPromise]);
     setData(next);
+    setQualifiedContext(context);
     const selected = next.opportunities.some(
       (opportunity) => opportunity.status === "SELECTED",
     );
@@ -96,9 +188,12 @@ export function FactoryHandoffWorkspace({
       opportunity: selected,
       readiness: next.readiness?.status === "APPROVED",
       package: published,
-      handoff: next.latest_retrieval?.result === "RETRIEVED",
+      // Retrieval proves access to the package, not that Mission Control
+      // created a Mission or Plan. This remains false until a future contract
+      // carries an authenticated import receipt.
+      missionControlImport: false,
     });
-  }, [engagementId, onProgress]);
+  }, [engagementId, onProgress, synthetic]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -127,6 +222,7 @@ export function FactoryHandoffWorkspace({
     try {
       await action();
       await load();
+      setComposer(null);
       setNotice({ tone: "success", text: success });
     } catch (reason) {
       setNotice({
@@ -174,6 +270,23 @@ export function FactoryHandoffWorkspace({
   const currentPackage = [...data.packages]
     .filter((deploymentPackage) => deploymentPackage.status !== "STALE")
     .sort((left, right) => right.package_version - left.package_version)[0];
+  const governedDraftUrl = missionControlDraftUrl(currentPackage);
+  const qualification = qualifiedContext?.qualification ?? null;
+  const qualifiedPartner = Boolean(
+    qualification &&
+    qualification.status === "ACTIVE" &&
+    qualification.qualification_state === "QUALIFIED" &&
+    qualification.data_classification !== "RESTRICTED",
+  );
+  const partnerRole = qualification?.authorized_users.find(
+    (user) => user.operator_id === operatorId,
+  )?.role;
+  const actionsEnabled =
+    synthetic ||
+    (qualifiedPartner && partnerRole !== undefined && partnerRole !== "viewer");
+  const ownerActionsEnabled =
+    synthetic || (qualifiedPartner && partnerRole === "owner");
+  const prerequisites = qualifiedContext?.prerequisites ?? null;
 
   return (
     <>
@@ -190,6 +303,14 @@ export function FactoryHandoffWorkspace({
         </div>
       )}
 
+      {!synthetic && (
+        <QualifiedActionBoundary
+          qualification={qualification}
+          partnerRole={partnerRole}
+          ready={qualifiedPartner}
+        />
+      )}
+
       <section className="mt-14 scroll-mt-6" id="factory-opportunities">
         <HandoffHeading
           eyebrow="08 / Customer truth to candidate line"
@@ -199,21 +320,50 @@ export function FactoryHandoffWorkspace({
 
         {!data.customer_model ? (
           <ActionState
-            button="Approve customer model v1"
-            detail="The version is built only from reviewed claims, approved workflow state, exact evidence references, and labeled assumptions."
-            disabled={busy !== null || !synthetic}
+            button={
+              synthetic ? "Approve customer model v1" : "Build model draft"
+            }
+            detail={
+              synthetic
+                ? "The version is built only from reviewed claims, approved workflow state, exact evidence references, and labeled assumptions."
+                : "The server supplies exact evidence and verified-claim digests. Building creates a reviewable draft; it does not approve anything."
+            }
+            disabled={
+              busy !== null ||
+              !actionsEnabled ||
+              (!synthetic &&
+                (!prerequisites ||
+                  prerequisites.evidence_refs.length === 0 ||
+                  prerequisites.verified_claim_refs.length === 0))
+            }
             eyebrow="Customer Factory Model"
-            onClick={() =>
+            onClick={() => {
+              if (synthetic) {
+                void runAction(
+                  "customer-model",
+                  () => approveSyntheticCustomerModel(engagementId),
+                  "Customer Factory Model v1 was approved with immutable provenance.",
+                );
+                return;
+              }
+              if (!prerequisites || !qualification) return;
               void runAction(
                 "customer-model",
-                () => approveSyntheticCustomerModel(engagementId),
-                "Customer Factory Model v1 was approved with immutable provenance.",
-              )
-            }
+                () =>
+                  createCustomerFactoryModel(
+                    engagementId,
+                    buildCustomerFactoryModelInput(
+                      prerequisites,
+                      qualification,
+                    ),
+                  ),
+                "A traceable Customer Factory Model draft was built. Review and approve it separately.",
+              );
+            }}
             title={
               synthetic
                 ? "Approve the verified synthetic model."
-                : "Submit a traceable Customer Factory Model through the API."
+                : "Build customer truth from qualified, reviewed sources."
             }
           />
         ) : (
@@ -236,22 +386,76 @@ export function FactoryHandoffWorkspace({
               </p>
               <Digest value={data.customer_model.content_digest} />
             </div>
-            {data.opportunities.length === 0 && (
-              <PrimaryButton
-                busy={busy === "assess-opportunity"}
-                disabled={busy !== null || !synthetic}
-                label="Assess opportunity"
-                onClick={() =>
-                  void runAction(
-                    "assess-opportunity",
-                    () => assessSyntheticFactoryOpportunity(engagementId),
-                    "The candidate was scored with the published deterministic rubric.",
-                  )
-                }
-              />
-            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              {data.customer_model.status === "DRAFT" && (
+                <PrimaryButton
+                  busy={busy === "approve-customer-model"}
+                  disabled={busy !== null || !actionsEnabled}
+                  label="Approve customer model"
+                  onClick={() =>
+                    void runAction(
+                      "approve-customer-model",
+                      () =>
+                        approveCustomerFactoryModel(
+                          engagementId,
+                          data.customer_model!.id,
+                        ),
+                      "The human operator approved the Customer Factory Model and its immutable provenance.",
+                    )
+                  }
+                />
+              )}
+              {data.customer_model.status === "APPROVED" &&
+                data.opportunities.length === 0 && (
+                  <PrimaryButton
+                    busy={busy === "assess-opportunity"}
+                    disabled={busy !== null || !actionsEnabled}
+                    label="Assess opportunity"
+                    onClick={() => {
+                      if (!synthetic) {
+                        setComposer("opportunity");
+                        return;
+                      }
+                      void runAction(
+                        "assess-opportunity",
+                        () => assessSyntheticFactoryOpportunity(engagementId),
+                        "The candidate was scored with the published deterministic rubric.",
+                      );
+                    }}
+                  />
+                )}
+            </div>
           </div>
         )}
+
+        {!synthetic &&
+          composer === "opportunity" &&
+          data.customer_model?.status === "APPROVED" &&
+          prerequisites && (
+            <OpportunityComposer
+              busy={busy === "assess-opportunity"}
+              defaultDescription={prerequisites.primary_outcome}
+              defaultName={`${prerequisites.workflow_name} improvement`}
+              onCancel={() => setComposer(null)}
+              onSubmit={(name, description, factors) =>
+                void runAction(
+                  "assess-opportunity",
+                  () =>
+                    createFactoryOpportunity(
+                      engagementId,
+                      buildFactoryOpportunityInput({
+                        model: data.customer_model!,
+                        prerequisites,
+                        name,
+                        description,
+                        factors,
+                      }),
+                    ),
+                  "The candidate was scored with the published deterministic rubric. Selection remains a separate human decision.",
+                )
+              }
+            />
+          )}
 
         {data.opportunities.length > 0 && (
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
@@ -259,22 +463,26 @@ export function FactoryHandoffWorkspace({
               <OpportunityCard
                 busy={busy === `select-${opportunity.id}`}
                 disabled={
-                  busy !== null || !synthetic || Boolean(selectedOpportunity)
+                  busy !== null ||
+                  !actionsEnabled ||
+                  Boolean(selectedOpportunity)
                 }
                 key={opportunity.id}
-                onSelect={() =>
+                onSelect={(reason) =>
                   void runAction(
                     `select-${opportunity.id}`,
                     () =>
                       selectFactoryOpportunity(
                         engagementId,
                         opportunity.id,
-                        "Selected after reviewing value, verifiability, readiness, risk, and authority boundaries.",
+                        reason ||
+                          "Selected after reviewing value, verifiability, readiness, risk, and authority boundaries.",
                       ),
                     `${opportunity.name} was selected. Final readiness now binds this exact version.`,
                   )
                 }
                 opportunity={opportunity}
+                requiresReason={!synthetic}
               />
             ))}
           </div>
@@ -292,15 +500,27 @@ export function FactoryHandoffWorkspace({
           <ActionState
             button="Assess seven stages"
             detail="Final readiness requires the selected line, approved target workflow and economics, plus the complete implementation packet."
-            disabled={busy !== null || !synthetic || !selectedOpportunity}
+            disabled={
+              busy !== null ||
+              !actionsEnabled ||
+              !selectedOpportunity ||
+              (!synthetic &&
+                (!prerequisites?.current_workflow_ref ||
+                  !prerequisites.target_workflow_ref ||
+                  prerequisites.implementation_artifact_refs.length === 0))
+            }
             eyebrow="Readiness assessment"
-            onClick={() =>
+            onClick={() => {
+              if (!synthetic) {
+                setComposer("readiness");
+                return;
+              }
               void runAction(
                 "assess-readiness",
                 () => assessSyntheticReadiness(engagementId),
                 "All seven FDLC stages were evaluated with explicit synthetic bases.",
-              )
-            }
+              );
+            }}
             title="Explain why the line is—or is not—ready."
           />
         ) : (
@@ -323,7 +543,11 @@ export function FactoryHandoffWorkspace({
               {data.readiness.status === "DRAFT" && (
                 <PrimaryButton
                   busy={busy === "approve-readiness"}
-                  disabled={busy !== null || !synthetic}
+                  disabled={
+                    busy !== null ||
+                    !actionsEnabled ||
+                    data.readiness.overall_status !== "READY"
+                  }
                   label="Approve readiness"
                   onClick={() =>
                     void runAction(
@@ -342,6 +566,36 @@ export function FactoryHandoffWorkspace({
             </div>
           </div>
         )}
+
+        {!synthetic &&
+          composer === "readiness" &&
+          data.customer_model?.status === "APPROVED" &&
+          selectedOpportunity &&
+          prerequisites && (
+            <ReadinessComposer
+              busy={busy === "assess-readiness"}
+              onCancel={() => setComposer(null)}
+              onSubmit={(reviewedCriteria) =>
+                void runAction(
+                  "assess-readiness",
+                  () =>
+                    createReadinessAssessment(
+                      engagementId,
+                      buildReadinessAssessmentInput({
+                        model: data.customer_model!,
+                        opportunity: selectedOpportunity,
+                        prerequisites,
+                        reviewedCriteria,
+                        owner:
+                          qualification?.organization ??
+                          "Design-partner operator",
+                      }),
+                    ),
+                  "Every FDLC criterion was recorded from an explicit human confirmation. Approval remains separate.",
+                )
+              }
+            />
+          )}
       </section>
 
       <section className="mt-14 scroll-mt-6" id="deployment-package">
@@ -352,26 +606,77 @@ export function FactoryHandoffWorkspace({
         />
 
         {!currentPackage ? (
-          <ActionState
-            button="Generate package draft"
-            detail="Only approved current sources and final READY assessment may enter the package. Raw customer evidence stays in Factory Engineer."
-            disabled={
-              busy !== null ||
-              !synthetic ||
-              data.readiness?.status !== "APPROVED"
-            }
-            eyebrow="Package v1"
-            onClick={() =>
-              void runAction(
-                "generate-package",
-                () => generateSyntheticDeploymentPackage(engagementId),
-                "A data-minimized package draft was generated from exact approved versions.",
-              )
-            }
-            title="Prepare a governed proposal—not an executable payload."
-          />
+          <>
+            <ActionState
+              button="Generate package draft"
+              detail="Only approved current sources and final READY assessment may enter the package. Raw customer evidence stays in Factory Engineer."
+              disabled={
+                busy !== null ||
+                !actionsEnabled ||
+                data.readiness?.status !== "APPROVED" ||
+                (!synthetic &&
+                  (!qualification ||
+                    !qualifiedContext?.economics ||
+                    qualifiedContext.artifacts.length === 0))
+              }
+              eyebrow="Package v1"
+              onClick={() => {
+                if (!synthetic) {
+                  setComposer("package");
+                  return;
+                }
+                void runAction(
+                  "generate-package",
+                  () => generateSyntheticDeploymentPackage(engagementId),
+                  "A data-minimized package draft was generated from exact approved versions.",
+                );
+              }}
+              title="Prepare a governed proposal—not an executable payload."
+            />
+            {!synthetic &&
+              composer === "package" &&
+              data.customer_model?.status === "APPROVED" &&
+              selectedOpportunity &&
+              data.readiness?.status === "APPROVED" &&
+              prerequisites &&
+              qualification &&
+              qualifiedContext?.economics && (
+                <PackageComposer
+                  busy={busy === "generate-package"}
+                  defaultObjective={prerequisites.primary_outcome}
+                  defaultTitle={`${selectedOpportunity.name} deployment proposal`}
+                  qualification={qualification}
+                  onCancel={() => setComposer(null)}
+                  onSubmit={(submission) =>
+                    void runAction(
+                      "generate-package",
+                      () =>
+                        createDeploymentPackage(
+                          engagementId,
+                          buildDeploymentPackageInput({
+                            model: data.customer_model!,
+                            opportunity: selectedOpportunity,
+                            readiness: data.readiness!,
+                            prerequisites,
+                            qualification,
+                            economics: qualifiedContext.economics!,
+                            artifacts: qualifiedContext.artifacts,
+                            ...submission,
+                          }),
+                        ),
+                      "A data-minimized package draft was generated from exact approved versions. Human review, approval, and publication remain separate.",
+                    )
+                  }
+                />
+              )}
+          </>
         ) : (
           <PackageReview
+            actionsEnabled={
+              currentPackage.status === "DRAFT"
+                ? actionsEnabled
+                : ownerActionsEnabled
+            }
             busy={busy}
             deploymentPackage={currentPackage}
             onAction={(action) => {
@@ -379,7 +684,13 @@ export function FactoryHandoffWorkspace({
                 review: () =>
                   submitDeploymentPackage(engagementId, currentPackage.id),
                 approve: () =>
-                  approveDeploymentPackage(engagementId, currentPackage.id),
+                  approveDeploymentPackage(
+                    engagementId,
+                    currentPackage.id,
+                    synthetic || !data.customer_model
+                      ? undefined
+                      : customerModelAuthorityReference(data.customer_model),
+                  ),
                 publish: () =>
                   publishDeploymentPackage(engagementId, currentPackage.id),
               };
@@ -392,7 +703,6 @@ export function FactoryHandoffWorkspace({
               };
               void runAction(action, actions[action], messages[action]);
             }}
-            synthetic={synthetic}
           />
         )}
       </section>
@@ -400,8 +710,8 @@ export function FactoryHandoffWorkspace({
       <section className="mt-14 scroll-mt-6" id="mission-control-handoff">
         <HandoffHeading
           eyebrow="11 / Governed downstream boundary"
-          title="Mission Control handoff"
-          detail="Mission Control independently authenticates, verifies, resolves local authority, and creates only Mission and Plan drafts."
+          title="Mission Control import"
+          detail="A separate Mission Control action must authenticate, verify, resolve local authority, and return a real import receipt before any Mission or Plan draft is claimed."
         />
         <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--ink)] text-white">
           <div className="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-center lg:p-8">
@@ -421,8 +731,10 @@ export function FactoryHandoffWorkspace({
               </h3>
               <p className="mt-3 max-w-3xl text-xs leading-5 text-white/60">
                 No WorkOrder, Attempt, approval, verification, merge, release,
-                or deployment state crosses back as source truth. The hosted
-                action below is a clearly labeled browser-local simulation.
+                or deployment state crosses back as source truth.{" "}
+                {synthetic
+                  ? "The hosted action below is a clearly labeled browser-local simulation."
+                  : "Opening the importer is an explicit human action; Mission Control still validates scope, provenance, digest, and local authority before creating an unapproved draft."}
               </p>
               {currentPackage && (
                 <dl className="mt-5 grid gap-3 text-xs sm:grid-cols-2">
@@ -449,7 +761,7 @@ export function FactoryHandoffWorkspace({
                 </dl>
               )}
             </div>
-            {!data.latest_retrieval ? (
+            {synthetic && !data.latest_retrieval ? (
               <button
                 className="rounded-full bg-white px-5 py-3 text-xs font-extrabold text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-35"
                 disabled={
@@ -466,7 +778,7 @@ export function FactoryHandoffWorkspace({
                         engagementId,
                         currentPackage.id,
                       ),
-                    "Mission Control retrieval and governed Plan-draft preview were simulated locally. No network request was made.",
+                    "Package retrieval was simulated locally. No network request was made and no Mission or Plan draft was created.",
                   )
                 }
                 type="button"
@@ -475,30 +787,507 @@ export function FactoryHandoffWorkspace({
                   ? "Simulating…"
                   : "Simulate safe retrieval"}
               </button>
-            ) : (
+            ) : synthetic && data.latest_retrieval ? (
               <div className="min-w-64 rounded-2xl border border-white/10 bg-white/5 p-5">
                 <p className="flex items-center gap-2 text-xs font-extrabold text-[#9ed5cc]">
-                  <CheckIcon className="h-4 w-4" /> Governed draft preview ready
+                  <CheckIcon className="h-4 w-4" /> Package retrieval simulated
                 </p>
                 <p className="mt-3 text-[0.68rem] leading-5 text-white/55">
                   {data.latest_retrieval.requester_system} ·{" "}
                   {formatTimestamp(data.latest_retrieval.created_at)}
                 </p>
+                <p className="mt-2 text-[0.68rem] leading-5 text-white/55">
+                  Retrieval is not an import receipt. No Mission or Plan draft
+                  was created.
+                </p>
                 <p className="mt-2 break-all font-mono text-[0.58rem] text-white/55">
                   Correlation {data.latest_retrieval.correlation_id}
                 </p>
               </div>
+            ) : governedDraftUrl ? (
+              <a
+                className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-xs font-extrabold text-[var(--ink)] no-underline"
+                href={governedDraftUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open governed draft import
+                <span aria-hidden="true">&nbsp;↗</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            ) : (
+              <div className="max-w-72 rounded-2xl border border-white/10 bg-white/5 p-5 text-xs font-bold leading-5 text-white/60">
+                {currentPackage?.status === "PUBLISHED"
+                  ? "Mission Control handoff is blocked until its reviewed HTTPS origin is configured."
+                  : "Publish an approved immutable package before opening Mission Control."}
+              </div>
             )}
           </div>
           <div className="border-t border-white/10 px-6 py-4 text-[0.64rem] font-bold text-white/55 lg:px-8">
-            Synthetic demo: zero API requests · Real adapter: preconfigured
-            HTTPS origin, scoped secret, issuer/digest/status validation,
-            explicit operator confirmation
+            {synthetic
+              ? "Synthetic demo: zero API requests · retrieval only · no Mission Control import receipt"
+              : "Real handoff: no secret in the browser link · scoped retrieval credential held by Mission Control · import remains pending until Mission Control returns an authenticated Mission/Plan draft receipt"}
           </div>
         </div>
       </section>
     </>
   );
+}
+
+function QualifiedActionBoundary({
+  qualification,
+  partnerRole,
+  ready,
+}: {
+  qualification: DesignPartnerQualification | null;
+  partnerRole: "owner" | "operator" | "viewer" | undefined;
+  ready: boolean;
+}) {
+  return (
+    <section
+      className={`mt-8 rounded-2xl border p-5 ${
+        ready
+          ? "border-[var(--teal)]/25 bg-[var(--teal-soft)]"
+          : "border-[var(--amber)]/25 bg-[var(--amber-soft)]"
+      }`}
+      aria-label="Design-partner authority boundary"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.11em] text-[var(--ink-soft)]">
+            Qualified customer path
+          </p>
+          <p className="mt-2 text-sm font-extrabold">
+            {ready
+              ? `${qualification?.organization} is qualified for controlled handoff work.`
+              : "Customer-data actions remain locked."}
+          </p>
+        </div>
+        <StatusPill
+          status={
+            ready
+              ? "QUALIFIED"
+              : (qualification?.status ??
+                qualification?.qualification_state ??
+                "NOT CONFIGURED")
+          }
+        />
+      </div>
+      <p className="mt-3 max-w-4xl text-xs leading-5 text-[var(--ink-soft)]">
+        {ready
+          ? `Your qualification role is ${partnerRole ?? "not authorized"}. Operators may prepare and review drafts; package approval and publication require the engagement owner. Nothing here approves a Mission Control plan, dispatches work, merges, releases, promotes, or deploys.`
+          : qualification
+            ? `Qualification is ${qualification.status.toLowerCase()} and ${qualification.qualification_state.toLowerCase().replaceAll("_", " ")}. An owner must restore an active, qualified boundary before operators can proceed.`
+            : "An owner must provision and qualify this design-partner engagement before customer-derived models or packages can be created."}
+      </p>
+    </section>
+  );
+}
+
+function OpportunityComposer({
+  busy,
+  defaultName,
+  defaultDescription,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  defaultName: string;
+  defaultDescription: string;
+  onCancel: () => void;
+  onSubmit: (
+    name: string,
+    description: string,
+    factors: FactoryOpportunityFactors,
+  ) => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [description, setDescription] = useState(defaultDescription);
+  const [factors, setFactors] = useState<FactoryOpportunityFactors>({
+    ...DEFAULT_OPPORTUNITY_FACTORS,
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim() || !description.trim()) return;
+    onSubmit(name, description, factors);
+  }
+
+  return (
+    <form
+      className="surface mt-5 rounded-2xl p-6"
+      aria-label="Assess a factory opportunity"
+      onSubmit={submit}
+    >
+      <div className="grid gap-5 lg:grid-cols-2">
+        <label className="text-xs font-extrabold">
+          Candidate line name
+          <input
+            className="mt-2 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-sm font-medium"
+            maxLength={512}
+            minLength={3}
+            onChange={(event) => setName(event.target.value)}
+            required
+            value={name}
+          />
+        </label>
+        <label className="text-xs font-extrabold">
+          Bounded outcome
+          <textarea
+            className="mt-2 min-h-24 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-sm font-medium"
+            maxLength={4000}
+            minLength={5}
+            onChange={(event) => setDescription(event.target.value)}
+            required
+            value={description}
+          />
+        </label>
+      </div>
+      <fieldset className="mt-6">
+        <legend className="text-xs font-extrabold">
+          Deterministic rubric factors · 0–5
+        </legend>
+        <p className="mt-2 text-[0.68rem] leading-5 text-[var(--ink-soft)]">
+          These inputs produce an explainable score. They do not select the
+          line.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(Object.keys(factors) as Array<keyof FactoryOpportunityFactors>).map(
+            (key) => (
+              <label
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] px-3 py-2"
+                key={key}
+              >
+                <span className="text-[0.68rem] font-bold">
+                  {humanize(key)}
+                </span>
+                <input
+                  aria-label={`${humanize(key)} score`}
+                  className="w-16 rounded-lg border border-[var(--line-strong)] bg-white px-2 py-1.5 text-center text-xs font-extrabold"
+                  max={5}
+                  min={0}
+                  onChange={(event) =>
+                    setFactors((current) => ({
+                      ...current,
+                      [key]: Number(event.target.value),
+                    }))
+                  }
+                  required
+                  type="number"
+                  value={factors[key]}
+                />
+              </label>
+            ),
+          )}
+        </div>
+      </fieldset>
+      <ComposerActions
+        busy={busy}
+        onCancel={onCancel}
+        submitLabel="Record assessment"
+      />
+    </form>
+  );
+}
+
+function ReadinessComposer({
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (reviewedCriteria: ReadonlySet<string>) => void;
+}) {
+  const [reviewedCriteria, setReviewedCriteria] = useState<Set<string>>(
+    new Set(),
+  );
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (reviewedCriteria.size !== READINESS_CRITERION_COUNT) return;
+    onSubmit(reviewedCriteria);
+  }
+
+  return (
+    <form
+      className="surface mt-5 rounded-2xl p-6"
+      aria-label="Review FDLC readiness"
+      onSubmit={submit}
+    >
+      <h3 className="display-font text-2xl font-medium">
+        Confirm every criterion against its immutable basis
+      </h3>
+      <p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--ink-soft)]">
+        This records a DRAFT readiness assessment. A separate approval is still
+        required, and no downstream execution authority is granted.
+      </p>
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {READINESS_STAGES.map((stage) => {
+          return (
+            <fieldset
+              className="rounded-xl border border-[var(--line)] bg-white p-4"
+              key={stage}
+            >
+              <legend className="px-1 text-xs font-extrabold">
+                {humanize(stage)}
+              </legend>
+              <div className="mt-2 grid gap-2.5">
+                {READINESS_CRITERIA[stage].map((criterion) => {
+                  const reviewKey = readinessCriterionReviewKey(
+                    stage,
+                    criterion,
+                  );
+                  const checked = reviewedCriteria.has(reviewKey);
+                  return (
+                    <label
+                      className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-[0.66rem] font-bold leading-4 ${
+                        checked
+                          ? "border-[var(--teal)]/35 bg-[var(--teal-soft)]"
+                          : "border-[var(--line)] bg-[var(--canvas)]"
+                      }`}
+                      key={criterion}
+                    >
+                      <input
+                        aria-label={`Confirm ${humanize(stage)} criterion: ${humanize(criterion)}`}
+                        checked={checked}
+                        className="mt-0.5"
+                        onChange={(event) =>
+                          setReviewedCriteria((current) => {
+                            const next = new Set(current);
+                            if (event.target.checked) next.add(reviewKey);
+                            else next.delete(reviewKey);
+                            return next;
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      <span>{humanize(criterion)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          );
+        })}
+      </div>
+      <ComposerActions
+        busy={busy}
+        disabled={reviewedCriteria.size !== READINESS_CRITERION_COUNT}
+        onCancel={onCancel}
+        submitLabel={`Record readiness draft (${reviewedCriteria.size}/${READINESS_CRITERION_COUNT} criteria)`}
+      />
+    </form>
+  );
+}
+
+type PackageComposerSubmission = {
+  repositoryRef: string;
+  workflowClass: string;
+  requestedCodeScopes: string[];
+  missionTitle: string;
+  objective: string;
+};
+
+function PackageComposer({
+  busy,
+  defaultTitle,
+  defaultObjective,
+  qualification,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  defaultTitle: string;
+  defaultObjective: string;
+  qualification: DesignPartnerQualification;
+  onCancel: () => void;
+  onSubmit: (submission: PackageComposerSubmission) => void;
+}) {
+  const [repositoryRef, setRepositoryRef] = useState(
+    qualification.authorized_repository_refs[0] ?? "",
+  );
+  const [workflowClass, setWorkflowClass] = useState(
+    qualification.allowed_workflow_classes[0] ?? "",
+  );
+  const [scopeText, setScopeText] = useState("");
+  const [missionTitle, setMissionTitle] = useState(defaultTitle);
+  const [objective, setObjective] = useState(defaultObjective);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      const requestedCodeScopes = parseBoundedCodeScopes(scopeText);
+      setValidationError(null);
+      onSubmit({
+        repositoryRef,
+        workflowClass,
+        requestedCodeScopes,
+        missionTitle,
+        objective,
+      });
+    } catch (reason) {
+      setValidationError(
+        reason instanceof Error ? reason.message : "The code scope is invalid.",
+      );
+    }
+  }
+
+  return (
+    <form
+      className="surface mt-5 rounded-2xl p-6"
+      aria-label="Prepare a deployment package draft"
+      onSubmit={submit}
+    >
+      <h3 className="display-font text-2xl font-medium">
+        Bound the proposal before it enters review
+      </h3>
+      <p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--ink-soft)]">
+        Repository and workflow choices come only from the active qualification.
+        The workspace reference is server-derived; this form never accepts a
+        credential, retrieval token, or arbitrary destination URL.
+      </p>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <label className="text-xs font-extrabold">
+          Authorized repository
+          <select
+            className="mt-2 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-sm"
+            onChange={(event) => setRepositoryRef(event.target.value)}
+            required
+            value={repositoryRef}
+          >
+            {qualification.authorized_repository_refs.map((repository) => (
+              <option key={repository} value={repository}>
+                {repository}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-extrabold">
+          Authorized workflow class
+          <select
+            className="mt-2 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-sm"
+            onChange={(event) => setWorkflowClass(event.target.value)}
+            required
+            value={workflowClass}
+          >
+            {qualification.allowed_workflow_classes.map((workflow) => (
+              <option key={workflow} value={workflow}>
+                {workflow}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-extrabold lg:col-span-2">
+          Bounded code scopes · one relative path or glob per line
+          <textarea
+            className="mt-2 min-h-24 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 font-mono text-xs"
+            maxLength={8000}
+            onChange={(event) => setScopeText(event.target.value)}
+            placeholder="apps/web/components/qualified-flow/**"
+            required
+            value={scopeText}
+          />
+        </label>
+        <label className="text-xs font-extrabold">
+          Mission draft title
+          <input
+            className="mt-2 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-sm"
+            maxLength={512}
+            minLength={3}
+            onChange={(event) => setMissionTitle(event.target.value)}
+            required
+            value={missionTitle}
+          />
+        </label>
+        <label className="text-xs font-extrabold">
+          Objective
+          <textarea
+            className="mt-2 min-h-24 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-sm"
+            maxLength={4000}
+            minLength={5}
+            onChange={(event) => setObjective(event.target.value)}
+            required
+            value={objective}
+          />
+        </label>
+      </div>
+      {validationError && (
+        <p className="mt-4 text-xs font-bold text-[var(--red)]" role="alert">
+          {validationError}
+        </p>
+      )}
+      <ComposerActions
+        busy={busy}
+        disabled={!repositoryRef || !workflowClass}
+        onCancel={onCancel}
+        submitLabel="Create package draft"
+      />
+    </form>
+  );
+}
+
+function ComposerActions({
+  busy,
+  disabled = false,
+  onCancel,
+  submitLabel,
+}: {
+  busy: boolean;
+  disabled?: boolean;
+  onCancel: () => void;
+  submitLabel: string;
+}) {
+  return (
+    <div className="mt-6 flex flex-wrap justify-end gap-2">
+      <button
+        className="rounded-full border border-[var(--line-strong)] bg-white px-5 py-3 text-xs font-extrabold disabled:opacity-40"
+        disabled={busy}
+        onClick={onCancel}
+        type="button"
+      >
+        Cancel
+      </button>
+      <button
+        className="rounded-full bg-[var(--ink)] px-5 py-3 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={busy || disabled}
+        type="submit"
+      >
+        {busy ? "Working…" : submitLabel}
+      </button>
+    </div>
+  );
+}
+
+function parseBoundedCodeScopes(value: string): string[] {
+  const scopes = Array.from(
+    new Set(
+      value
+        .split("\n")
+        .map((scope) => scope.trim())
+        .filter(Boolean),
+    ),
+  );
+  if (scopes.length === 0 || scopes.length > 50) {
+    throw new Error("Record between 1 and 50 bounded code scopes.");
+  }
+  if (
+    scopes.some(
+      (scope) =>
+        scope.length > 1024 ||
+        scope.startsWith("/") ||
+        scope.includes("..") ||
+        scope.includes("://") ||
+        scope.includes("\\") ||
+        /[\r\n\0]/u.test(scope),
+    )
+  ) {
+    throw new Error(
+      "Use relative repository paths or globs only; URLs, parent traversal, and absolute paths are not allowed.",
+    );
+  }
+  return scopes;
 }
 
 function HandoffHeading({
@@ -602,13 +1391,16 @@ function OpportunityCard({
   opportunity,
   busy,
   disabled,
+  requiresReason,
   onSelect,
 }: {
   opportunity: FactoryOpportunity;
   busy: boolean;
   disabled: boolean;
-  onSelect: () => void;
+  requiresReason: boolean;
+  onSelect: (reason: string) => void;
 }) {
+  const [selectionReason, setSelectionReason] = useState("");
   const scores = [
     ["Value", opportunity.value_score],
     ["Verify", opportunity.verifiability_score],
@@ -659,12 +1451,32 @@ function OpportunityCard({
             Human-selected · {opportunity.selection_reason}
           </p>
         ) : (
-          <PrimaryButton
-            busy={busy}
-            disabled={disabled}
-            label="Select factory line"
-            onClick={onSelect}
-          />
+          <div className="mt-5">
+            {requiresReason && (
+              <label className="mb-3 block text-xs font-extrabold">
+                Selection rationale
+                <textarea
+                  aria-label={`Selection rationale for ${opportunity.name}`}
+                  className="mt-2 min-h-20 w-full rounded-xl border border-[var(--line-strong)] bg-white px-3 py-2.5 text-xs font-medium"
+                  maxLength={4000}
+                  minLength={5}
+                  onChange={(event) => setSelectionReason(event.target.value)}
+                  placeholder="Why this line should advance after reviewing value, evidence, risk, and authority."
+                  required
+                  value={selectionReason}
+                />
+              </label>
+            )}
+            <PrimaryButton
+              busy={busy}
+              disabled={
+                disabled ||
+                (requiresReason && selectionReason.trim().length < 5)
+              }
+              label="Select factory line"
+              onClick={() => onSelect(selectionReason.trim())}
+            />
+          </div>
         )}
       </div>
     </article>
@@ -706,12 +1518,12 @@ function ReadinessCard({ stage }: { stage: FDLCReadinessStage }) {
 function PackageReview({
   deploymentPackage,
   busy,
-  synthetic,
+  actionsEnabled,
   onAction,
 }: {
   deploymentPackage: DeploymentPackage;
   busy: string | null;
-  synthetic: boolean;
+  actionsEnabled: boolean;
   onAction: (action: "review" | "approve" | "publish") => void;
 }) {
   const nextAction = useMemo(() => {
@@ -755,7 +1567,7 @@ function PackageReview({
         {nextAction && (
           <PrimaryButton
             busy={busy === nextAction.key}
-            disabled={busy !== null || !synthetic}
+            disabled={busy !== null || !actionsEnabled}
             label={nextAction.label}
             onClick={() => onAction(nextAction.key)}
           />

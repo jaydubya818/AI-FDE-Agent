@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -19,6 +20,10 @@ from ai_fde.models import (
     Operator,
     WorkflowStep,
     WorkflowVersion,
+)
+from ai_fde.modules.design_partner.service import (
+    DesignPartnerQualificationError,
+    require_package_publication_eligibility,
 )
 from ai_fde.modules.factory_engineer.canonical import (
     CANONICALIZATION,
@@ -67,6 +72,7 @@ AGGREGATE_TYPE_BY_TABLE = {
     "factory_opportunities": "factory_opportunity",
     "factory_deployment_package_versions": "factory_deployment_package_version",
 }
+MAX_FACTORY_SOURCE_REFERENCES = 200
 
 
 class FactoryEngineerNotFoundError(LookupError):
@@ -79,6 +85,86 @@ class FactoryEngineerStateError(ValueError):
 
 class FactoryEngineerIntegrityError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class FactoryHandoffPrerequisites:
+    engagement: Engagement
+    evidence_refs: list[SourceReference]
+    verified_claim_refs: list[SourceReference]
+    current_workflow_ref: ImmutableVersionReference | None
+    target_workflow_ref: ImmutableVersionReference | None
+    economic_case_ref: SourceReference | None
+    implementation_artifact_refs: list[SourceReference]
+
+
+def get_factory_handoff_prerequisites(
+    session: Session, engagement_id: UUID
+) -> FactoryHandoffPrerequisites:
+    """Return bounded, digest-valid inputs the operator may use for a draft."""
+
+    engagement = session.get(Engagement, engagement_id)
+    if engagement is None:
+        raise FactoryEngineerNotFoundError(str(engagement_id))
+    evidence = list(
+        session.scalars(
+            select(EvidenceAsset)
+            .where(
+                EvidenceAsset.engagement_id == engagement_id,
+                EvidenceAsset.status == "complete",
+            )
+            .order_by(EvidenceAsset.created_at, EvidenceAsset.id)
+            .limit(MAX_FACTORY_SOURCE_REFERENCES)
+        )
+    )
+    assertions = list(
+        session.scalars(
+            select(Assertion)
+            .where(
+                Assertion.engagement_id == engagement_id,
+                Assertion.status == "verified",
+            )
+            .order_by(Assertion.recorded_at, Assertion.id)
+            .limit(MAX_FACTORY_SOURCE_REFERENCES)
+        )
+    )
+    current = _latest_approved_workflow(session, engagement_id, "current")
+    target = _latest_approved_workflow(session, engagement_id, "target")
+    economics = session.scalar(
+        select(EconomicCase)
+        .where(
+            EconomicCase.engagement_id == engagement_id,
+            EconomicCase.status == "approved",
+        )
+        .order_by(EconomicCase.version_number.desc())
+        .limit(1)
+    )
+    artifacts = list(
+        session.scalars(
+            select(ImplementationArtifact)
+            .where(
+                ImplementationArtifact.engagement_id == engagement_id,
+                ImplementationArtifact.status == "current",
+            )
+            .order_by(ImplementationArtifact.artifact_type, ImplementationArtifact.id)
+            .limit(MAX_FACTORY_SOURCE_REFERENCES)
+        )
+    )
+    return FactoryHandoffPrerequisites(
+        engagement=engagement,
+        evidence_refs=[evidence_asset_reference(item) for item in evidence],
+        verified_claim_refs=[assertion_reference(item) for item in assertions],
+        current_workflow_ref=(
+            workflow_version_reference(session, current) if current is not None else None
+        ),
+        target_workflow_ref=(
+            workflow_version_reference(session, target) if target is not None else None
+        ),
+        economic_case_ref=(economic_case_reference(economics) if economics is not None else None),
+        implementation_artifact_refs=[
+            implementation_artifact_reference(item) for item in artifacts
+        ],
+    )
 
 
 def create_customer_factory_model(
@@ -784,9 +870,7 @@ def publish_deployment_package(
 ) -> FactoryDeploymentPackageVersion:
     _require_human(operator, "Deployment package publication")
     _lock_active_engagement(session, engagement_id)
-    _require_engagement_owner(
-        session, engagement_id, operator, "Deployment package publication"
-    )
+    _require_engagement_owner(session, engagement_id, operator, "Deployment package publication")
     package = _package(session, engagement_id, package_version_id, lock=True)
     if package.status != FactoryDeploymentPackageStatus.APPROVED:
         raise FactoryEngineerStateError("Only an approved package can be published.")
@@ -797,6 +881,15 @@ def publish_deployment_package(
             "Approved package digest no longer matches its content."
         )
     timestamp = now or datetime.now(UTC)
+    try:
+        require_package_publication_eligibility(
+            session,
+            engagement_id=engagement_id,
+            target=package.target,
+            now=timestamp,
+        )
+    except DesignPartnerQualificationError as exc:
+        raise FactoryEngineerStateError(str(exc)) from exc
     # This exact envelope gate is the producer/consumer seam. The earlier input cap
     # leaves room for immutable source, issuer, approval, and attestation metadata.
     published_package_envelope(
@@ -857,9 +950,7 @@ def reject_deployment_package(
         FactoryDeploymentPackageStatus.READY_FOR_REVIEW,
         FactoryDeploymentPackageStatus.APPROVED,
     }:
-        raise FactoryEngineerStateError(
-            "Only a current unpublished package can be rejected."
-        )
+        raise FactoryEngineerStateError("Only a current unpublished package can be rejected.")
     clean_reason = reason.strip()
     if not clean_reason:
         raise FactoryEngineerStateError("Package rejection requires a reason.")
@@ -1341,6 +1432,21 @@ def workflow_version_reference(
     )
 
 
+def _latest_approved_workflow(
+    session: Session, engagement_id: UUID, kind: str
+) -> WorkflowVersion | None:
+    return session.scalar(
+        select(WorkflowVersion)
+        .where(
+            WorkflowVersion.engagement_id == engagement_id,
+            WorkflowVersion.workflow_kind == kind,
+            WorkflowVersion.status == "approved",
+        )
+        .order_by(WorkflowVersion.version_number.desc())
+        .limit(1)
+    )
+
+
 def _assert_workflow_ref_current(
     session: Session,
     engagement_id: UUID,
@@ -1388,6 +1494,30 @@ def assertion_reference(assertion: Assertion) -> SourceReference:
         ref=f"assertion:{assertion.id}",
         version=1,
         sha256=_assertion_digest(assertion),
+    )
+
+
+def economic_case_reference(economic_case: EconomicCase) -> SourceReference:
+    if economic_case.status != "approved":
+        raise FactoryEngineerStateError("Economic-case provenance requires an approved version.")
+    return SourceReference(
+        kind=ProvenanceKind.APPROVED_INPUT,
+        ref=f"economic_case:{economic_case.id}",
+        version=economic_case.version_number,
+        sha256=_economic_case_digest(economic_case),
+    )
+
+
+def implementation_artifact_reference(
+    artifact: ImplementationArtifact,
+) -> SourceReference:
+    if artifact.status != "current":
+        raise FactoryEngineerStateError("Implementation provenance requires a current artifact.")
+    return SourceReference(
+        kind=ProvenanceKind.APPROVED_INPUT,
+        ref=f"implementation_artifact:{artifact.id}",
+        version=artifact.version_number,
+        sha256=f"sha256:{artifact.content_hash}",
     )
 
 

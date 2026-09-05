@@ -4,14 +4,20 @@ import hashlib
 import hmac
 import secrets
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ai_fde.models import Engagement, EngagementMember, Operator
+from ai_fde.modules.design_partner.service import (
+    DesignPartnerQualificationError,
+    lock_design_partner_authority,
+    require_package_publication_eligibility,
+)
 from ai_fde.modules.factory_engineer.models import (
     FactoryDeploymentPackageVersion,
     PackageRetrievalEvent,
@@ -31,6 +37,7 @@ from ai_fde.modules.shared import record_audit
 
 TOKEN_PREFIX = "fdp1"
 RETRIEVAL_SCOPE = "deployment-packages:retrieve"
+MAX_RETRIEVAL_GRANT_TTL = timedelta(hours=24)
 
 
 @dataclass(frozen=True)
@@ -79,9 +86,7 @@ def provision_retrieval_service_identity(
     # create_engagement may have staged the owner's membership in this transaction.
     session.flush()
     _require_human(created_by, "Retrieval identity provisioning")
-    _require_engagement_owner(
-        session, engagement_id, created_by, "Retrieval identity provisioning"
-    )
+    _require_engagement_owner(session, engagement_id, created_by, "Retrieval identity provisioning")
     external_subject = f"factory-package-retrieval:{engagement_id}"
     service_operator = session.scalar(
         select(Operator).where(Operator.external_subject == external_subject)
@@ -150,6 +155,7 @@ def issue_retrieval_grant(
     now: datetime | None = None,
 ) -> IssuedRetrievalGrant:
     timestamp = now or datetime.now(UTC)
+    _validate_retrieval_grant_expiry(expires_at, now=timestamp)
     if service_operator.identity_kind != "service" or not service_operator.is_active:
         raise ValueError("Package retrieval grants require an active service operator.")
     engagement = session.scalar(
@@ -168,18 +174,17 @@ def issue_retrieval_grant(
         )
     )
     if membership is None or membership.role != "viewer":
-        raise ValueError(
-            "The service operator must have viewer-only membership in the engagement."
+        raise ValueError("The service operator must have viewer-only membership in the engagement.")
+    if (
+        session.scalar(
+            select(EngagementMember.id).where(
+                EngagementMember.operator_id == service_operator.id,
+                EngagementMember.engagement_id != engagement_id,
+            )
         )
-    if session.scalar(
-        select(EngagementMember.id).where(
-            EngagementMember.operator_id == service_operator.id,
-            EngagementMember.engagement_id != engagement_id,
-        )
-    ) is not None:
+        is not None
+    ):
         raise ValueError("A package retrieval identity cannot be shared between engagements.")
-    if expires_at <= timestamp:
-        raise ValueError("Retrieval grant expiry must be in the future.")
     clean_identity = requester_identity.strip()
     clean_system = requester_system.strip()
     if not clean_identity or not clean_system:
@@ -216,6 +221,73 @@ def issue_retrieval_grant(
         },
     )
     return IssuedRetrievalGrant(grant=grant, token=token)
+
+
+def rotate_retrieval_grant(
+    session: Session,
+    *,
+    engagement_id: UUID,
+    service_operator: Operator,
+    created_by: Operator,
+    requester_identity: str,
+    requester_system: str,
+    expires_at: datetime,
+    now: datetime | None = None,
+) -> IssuedRetrievalGrant:
+    """Revoke every prior grant for the identity and return one replacement secret."""
+
+    timestamp = now or datetime.now(UTC)
+    _validate_retrieval_grant_expiry(expires_at, now=timestamp)
+    # Match authentication/retrieval/revocation lock order: aggregate first, then
+    # grant rows. Otherwise rotation can deadlock while holding a grant row against
+    # a retrieval transaction that already holds the engagement row.
+    engagement = session.scalar(
+        select(Engagement).where(Engagement.id == engagement_id).with_for_update()
+    )
+    if engagement is None or engagement.data_lifecycle_status != "active":
+        raise ValueError(
+            "Retrieval grants are unavailable while engagement deletion is pending or failed."
+        )
+    active_grant_ids = list(
+        session.scalars(
+            select(PackageRetrievalGrant.id)
+            .where(
+                PackageRetrievalGrant.engagement_id == engagement_id,
+                PackageRetrievalGrant.service_operator_id == service_operator.id,
+                PackageRetrievalGrant.revoked_at.is_(None),
+            )
+            .with_for_update()
+        )
+    )
+    for grant_id in active_grant_ids:
+        revoke_retrieval_grant(
+            session,
+            engagement_id=engagement_id,
+            grant_id=grant_id,
+            revoked_by=created_by,
+            now=timestamp,
+        )
+    return issue_retrieval_grant(
+        session,
+        engagement_id=engagement_id,
+        service_operator=service_operator,
+        created_by=created_by,
+        requester_identity=requester_identity,
+        requester_system=requester_system,
+        expires_at=expires_at,
+        now=timestamp,
+    )
+
+
+def _validate_retrieval_grant_expiry(expires_at: datetime, *, now: datetime) -> None:
+    if expires_at.tzinfo is None or expires_at.utcoffset() is None:
+        raise ValueError("Retrieval grant expiry must include a timezone.")
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("Retrieval grant issuance time must include a timezone.")
+    if expires_at <= now:
+        raise ValueError("Retrieval grant expiry must be in the future.")
+    if expires_at > now + MAX_RETRIEVAL_GRANT_TTL:
+        raise ValueError("Retrieval grant expiry cannot exceed 24 hours.")
 
 
 def parse_retrieval_token_subject(token: str) -> RetrievalTokenSubject | None:
@@ -356,13 +428,13 @@ def retrieve_published_package(
     package_id: UUID,
     package_version: int,
     principal: AuthenticatedRetrievalPrincipal,
+    runtime_authority_check: Callable[[datetime], None],
     correlation_id: UUID | None = None,
     now: datetime | None = None,
 ) -> RetrievalDecision:
     """Return a non-throwing decision and stage its audit event in the caller's transaction."""
 
     correlation = correlation_id or uuid.uuid4()
-    timestamp = now or datetime.now(UTC)
     engagement = session.scalar(
         select(Engagement).where(Engagement.id == principal.engagement_id).with_for_update()
     )
@@ -404,6 +476,57 @@ def retrieve_published_package(
             return _denied(session, package, principal, correlation, "DENIED_INTEGRITY")
         if package.approval_binding is None or package.published_at is None:
             return _denied(session, package, principal, correlation, "DENIED_INTEGRITY")
+    except (KeyError, TypeError, ValueError):
+        return _denied(session, package, principal, correlation, "DENIED_INTEGRITY")
+
+    grant = _lock_retrieval_grant(
+        session,
+        principal=principal,
+    )
+    authority_locked = engagement.data_classification != "sanitized" or (
+        lock_design_partner_authority(
+            session,
+            engagement_id=engagement.id,
+            required_access="read",
+        )
+    )
+
+    # Evaluate every time-bound authority only after all authorization locks and
+    # integrity work. The same decision time is attested in the returned envelope.
+    timestamp = now or datetime.now(UTC)
+    credential_denial = _revalidate_retrieval_grant(
+        session,
+        grant=grant,
+        now=timestamp,
+    )
+    if credential_denial is not None:
+        return RetrievalDecision(
+            allowed=False,
+            result=credential_denial,
+            correlation_id=correlation,
+        )
+    try:
+        if not authority_locked:
+            raise DesignPartnerQualificationError(
+                "The design-partner qualification is not available to this runtime."
+            )
+        require_package_publication_eligibility(
+            session,
+            engagement_id=package.engagement_id,
+            target=package.target,
+            now=timestamp,
+        )
+        if engagement.data_classification == "sanitized":
+            runtime_authority_check(timestamp)
+    except DesignPartnerQualificationError:
+        return _denied(
+            session,
+            package,
+            principal,
+            correlation,
+            "DENIED_QUALIFICATION",
+        )
+    try:
         envelope = published_package_envelope(
             package,
             published_at=package.published_at,
@@ -419,6 +542,55 @@ def retrieve_published_package(
         correlation_id=correlation,
         package=envelope,
     )
+
+
+def _revalidate_locked_retrieval_grant(
+    session: Session,
+    *,
+    principal: AuthenticatedRetrievalPrincipal,
+    now: datetime,
+) -> str | None:
+    """Recheck the authenticated, transaction-locked grant at package decision time."""
+
+    grant = _lock_retrieval_grant(session, principal=principal)
+    return _revalidate_retrieval_grant(session, grant=grant, now=now)
+
+
+def _lock_retrieval_grant(
+    session: Session,
+    *,
+    principal: AuthenticatedRetrievalPrincipal,
+) -> PackageRetrievalGrant | None:
+    return session.scalar(
+        select(PackageRetrievalGrant)
+        .where(
+            PackageRetrievalGrant.id == principal.grant_id,
+            PackageRetrievalGrant.service_operator_id == principal.operator_id,
+            PackageRetrievalGrant.engagement_id == principal.engagement_id,
+        )
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
+
+
+def _revalidate_retrieval_grant(
+    session: Session,
+    *,
+    grant: PackageRetrievalGrant | None,
+    now: datetime,
+) -> str | None:
+    if grant is None:
+        return "INVALID_TOKEN"
+    if grant.revoked_at is not None:
+        _record_authentication_denial(session, grant, "REVOKED_TOKEN")
+        return "REVOKED_TOKEN"
+    if grant.expires_at <= now:
+        _record_authentication_denial(session, grant, "EXPIRED_TOKEN")
+        return "EXPIRED_TOKEN"
+    if grant.scope != RETRIEVAL_SCOPE:
+        _record_authentication_denial(session, grant, "INVALID_SCOPE")
+        return "INVALID_SCOPE"
+    return None
 
 
 def _denied(

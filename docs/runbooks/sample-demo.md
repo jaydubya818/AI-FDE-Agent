@@ -98,6 +98,11 @@ make seed
 make dev
 ```
 
+Both `pnpm dev` and `make dev` explicitly disable deployment heartbeats for this synthetic local
+profile, so the development worker continues to use the application database role. Configuration
+validation rejects disabled heartbeats outside development or whenever sanitized data is enabled;
+production workers must use their release-scoped RDS IAM identity and keep heartbeats enabled.
+
 Open [http://localhost:3000](http://localhost:3000). Before presenting, run the automated rehearsal
 once on the same commit. Do not reuse the automated rehearsal's runtime: it intentionally cleans up
 when the test completes.

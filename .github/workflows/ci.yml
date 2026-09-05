@@ -71,10 +71,26 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.16.1"
+          terraform_wrapper: false
+
       - name: Install dependencies
         run: |
           uv sync --frozen
           pnpm install --frozen-lockfile
+
+      - name: Validate design-partner Terraform
+        working-directory: infrastructure/terraform/design-partner
+        env:
+          AWS_EC2_METADATA_DISABLED: "true"
+          TF_IN_AUTOMATION: "true"
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
 
       - name: Initialize PostgreSQL roles
         run: >-
@@ -112,6 +128,16 @@ jobs:
           uv run mypy src tests
           uv run pytest -ra
 
+      - name: Build containers and verify the non-root RDS trust bundle
+        run: |
+          expected_ca="e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3  /opt/ai-fde/certs/aws-rds-global-bundle.pem"
+          docker build --file docker/api.Dockerfile --tag ai-fde-api:ci .
+          docker build --file docker/worker.Dockerfile --tag ai-fde-worker:ci .
+          for image in ai-fde-api:ci ai-fde-worker:ci; do
+            test "$(docker image inspect "${image}" --format '{{.Config.User}}')" = "ai-fde"
+            test "$(docker run --rm --entrypoint sha256sum "${image}" /opt/ai-fde/certs/aws-rds-global-bundle.pem)" = "${expected_ca}"
+          done
+
       - name: Run frontend static checks
         run: |
           pnpm --dir apps/web exec prettier --check .
@@ -145,6 +171,12 @@ jobs:
           pnpm --dir apps/web run test:e2e:golden
           pnpm --dir apps/web run test:e2e:alpha
           pnpm --dir apps/web run test:a11y
+
+      - name: Run qualified design-partner browser gate
+        env:
+          VERCEL: ""
+          AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER: "false"
+        run: pnpm --dir apps/web run test:e2e:partner
 
       - name: Upload browser failure evidence
         if: failure()

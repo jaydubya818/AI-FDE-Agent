@@ -10,12 +10,25 @@ import pytest
 import yaml
 from sqlalchemy import select
 
-from ai_fde.adapters.storage import InMemoryEvidenceStore
+from ai_fde.adapters.storage import (
+    EvidenceObjectVersionNotFoundError,
+    EvidencePrefixPurgeReceipt,
+    InMemoryEvidenceStore,
+)
 from ai_fde.db import operator_session
-from ai_fde.models import Engagement, EngagementAssessment, EngagementDeletionReceipt, Operator
+from ai_fde.models import (
+    AuditEvent,
+    Engagement,
+    EngagementAssessment,
+    EngagementDeletionReceipt,
+    EngagementExport,
+    EvidenceAsset,
+    Operator,
+)
 from ai_fde.modules.data_lifecycle.service import (
     DataLifecycleError,
     DeletionExecutionError,
+    ExportGenerationError,
     create_engagement_export,
     delete_engagement_permanently,
     set_retention_deadline,
@@ -34,10 +47,21 @@ class RetryableDeleteStore(InMemoryEvidenceStore):
         super().__init__()
         self.fail_deletes = True
 
-    def delete(self, key: str) -> None:
+    def purge_engagement_evidence(
+        self, engagement_id: uuid.UUID
+    ) -> EvidencePrefixPurgeReceipt:
         if self.fail_deletes:
             raise RuntimeError("object storage unavailable")
-        super().delete(key)
+        return super().purge_engagement_evidence(engagement_id)
+
+
+class TamperedVersionReadStore(InMemoryEvidenceStore):
+    tamper_reads = False
+
+    def get(self, key: str, *, version_id: str | None = None) -> bytes:
+        if self.tamper_reads and version_id is not None:
+            return b"bytes that do not match the accepted evidence digest"
+        return super().get(key, version_id=version_id)
 
 
 def _create_engagement_with_evidence(
@@ -80,6 +104,14 @@ def test_owner_exports_then_permanently_deletes_engagement(
     )
 
     with operator_session(test_operator.id) as session:
+        asset = session.scalar(
+            select(EvidenceAsset).where(EvidenceAsset.engagement_id == engagement_id)
+        )
+        assert asset is not None
+        assert asset.storage_version_id is not None
+        asset_id = asset.id
+        pinned_key = asset.storage_key
+        pinned_version_id = asset.storage_version_id
         assessment = EngagementAssessment(
             engagement_id=engagement_id,
             evaluator_id=test_operator.id,
@@ -110,6 +142,10 @@ def test_owner_exports_then_permanently_deletes_engagement(
             names = set(archive.namelist())
             assert {"manifest.json", "records.json", "records.yaml", "README.md"} <= names
             evidence_path = next(name for name in names if name.startswith("evidence/"))
+            assert evidence_path == f"evidence/{asset_id}/{asset_id}.md"
+            assert all(not name.startswith("/") for name in names)
+            assert all("\\" not in name for name in names)
+            assert all(".." not in name.split("/") for name in names)
             assert archive.read(evidence_path) == b"Invoices over $50,000 require CFO approval."
             manifest = json.loads(archive.read("manifest.json"))
             yaml_records = yaml.safe_load(archive.read("records.yaml"))
@@ -118,6 +154,14 @@ def test_owner_exports_then_permanently_deletes_engagement(
             assert yaml_records["engagement"]["id"] == str(engagement_id)
             assert len(yaml_records["records"]["engagement_assessments"]) == 1
             assert yaml_records["records"]["engagement_assessments"][0]["outcome"] == "blocked"
+
+    prefix = f"engagements/{engagement_id}/evidence/"
+    untracked = store.put(
+        f"{prefix}untracked-after-export.md",
+        b"untracked version still belongs to this engagement",
+        "text/markdown",
+    )
+    store.delete(untracked.key)
 
     receipt = delete_engagement_permanently(
         store,
@@ -133,11 +177,99 @@ def test_owner_exports_then_permanently_deletes_engagement(
     assert receipt.database_row_count > 1
     assert receipt.evidence_object_count == 1
     assert store.objects == {}
+    assert store.stored_version_count == 0
+    assert store.delete_marker_count == 0
+    with pytest.raises(EvidenceObjectVersionNotFoundError, match="unavailable"):
+        store.get(pinned_key, version_id=pinned_version_id)
+    with pytest.raises(EvidenceObjectVersionNotFoundError, match="unavailable"):
+        store.get(untracked.key, version_id=untracked.version_id)
     with operator_session(test_operator.id) as session:
         assert session.get(Engagement, engagement_id) is None
         assert session.get(EngagementAssessment, assessment_id) is None
         persisted_receipt = session.get_one(EngagementDeletionReceipt, receipt.id)
         assert persisted_receipt.completed_at is not None
+
+
+@pytest.mark.integration
+@pytest.mark.isolation
+def test_export_uses_the_pinned_version_after_current_overwrite_and_delete_marker(
+    postgres_available: None,
+    test_operator: OperatorFixture,
+) -> None:
+    store = InMemoryEvidenceStore()
+    engagement_id = _create_engagement_with_evidence(
+        test_operator,
+        store,
+        name="Pinned Export Manufacturing",
+    )
+    with operator_session(test_operator.id) as session:
+        asset = session.scalar(
+            select(EvidenceAsset).where(EvidenceAsset.engagement_id == engagement_id)
+        )
+        assert asset is not None
+        assert asset.storage_version_id is not None
+        store.put(
+            asset.storage_key,
+            b"a newer current version must not replace accepted evidence",
+            "text/markdown",
+        )
+        store.delete(asset.storage_key)
+        assert asset.storage_key not in store.objects
+
+        generated = create_engagement_export(
+            session,
+            store,
+            engagement_id=engagement_id,
+            operator=session.get_one(Operator, test_operator.id),
+        )
+
+    with ZipFile(BytesIO(generated.content)) as archive:
+        evidence_path = next(
+            name for name in archive.namelist() if name.startswith("evidence/")
+        )
+        assert archive.read(evidence_path) == b"Invoices over $50,000 require CFO approval."
+
+
+@pytest.mark.integration
+@pytest.mark.isolation
+def test_export_rejects_tampered_pinned_version_without_persisting_success(
+    postgres_available: None,
+    test_operator: OperatorFixture,
+) -> None:
+    store = TamperedVersionReadStore()
+    engagement_id = _create_engagement_with_evidence(
+        test_operator,
+        store,
+        name="Tampered Export Manufacturing",
+    )
+    store.tamper_reads = True
+
+    with pytest.raises(ExportGenerationError, match="integrity verification"), operator_session(
+        test_operator.id
+    ) as session:
+        create_engagement_export(
+            session,
+            store,
+            engagement_id=engagement_id,
+            operator=session.get_one(Operator, test_operator.id),
+        )
+
+    with operator_session(test_operator.id) as session:
+        assert list(
+            session.scalars(
+                select(EngagementExport).where(
+                    EngagementExport.engagement_id == engagement_id
+                )
+            )
+        ) == []
+        assert list(
+            session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.engagement_id == engagement_id,
+                    AuditEvent.action == "engagement.exported",
+                )
+            )
+        ) == []
 
 
 @pytest.mark.integration

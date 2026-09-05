@@ -4,6 +4,7 @@ const baseURL =
   process.env.AI_FDE_PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const usesExternalServer =
   process.env.AI_FDE_PLAYWRIGHT_EXTERNAL_SERVER === "true";
+const usesMockApi = process.env.AI_FDE_PLAYWRIGHT_MOCK_API === "true";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -20,7 +21,9 @@ export default defineConfig({
   webServer: usesExternalServer
     ? undefined
     : {
-        command: "pnpm --dir ../.. dev",
+        command: usesMockApi
+          ? "NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=false NEXT_PUBLIC_MISSION_CONTROL_URL=https://mission-control.example pnpm dev"
+          : "pnpm --dir ../.. dev",
         reuseExistingServer: true,
         timeout: 120_000,
         url: baseURL,

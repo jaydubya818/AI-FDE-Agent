@@ -8,6 +8,7 @@ from fastapi import (
     APIRouter,
     File,
     Form,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -15,7 +16,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from ai_fde.api.dependencies import (
     EngagementOwnerDependency,
@@ -36,6 +37,7 @@ from ai_fde.api.schemas import (
     ContradictionResolveRequest,
     ContradictionResponse,
     DeliveryScorecardResponse,
+    DesignPartnerQualificationResponse,
     EconomicCalculateRequest,
     EconomicCaseResponse,
     EngagementAssessmentCreate,
@@ -49,7 +51,6 @@ from ai_fde.api.schemas import (
     EngagementWorkspaceResponse,
     EntityResponse,
     EvidenceResponse,
-    HealthResponse,
     ImplementationArtifactResponse,
     InternalAlphaScorecardResponse,
     OperatingModelResponse,
@@ -63,7 +64,7 @@ from ai_fde.api.schemas import (
     WorkflowWorkspaceResponse,
 )
 from ai_fde.api.upload_limits import read_evidence_upload
-from ai_fde.models import WorkflowVersion
+from ai_fde.models import Engagement, WorkflowVersion
 from ai_fde.modules.artifacts.service import (
     ArtifactStageGateError,
     generate_implementation_packet,
@@ -80,6 +81,15 @@ from ai_fde.modules.data_lifecycle.service import (
     export_is_current,
     get_latest_export,
     set_retention_deadline,
+)
+from ai_fde.modules.design_partner.service import (
+    AuthorizedCustomerDataContext,
+    DesignPartnerQualificationNotFoundError,
+    authorize_qualified_document_upload,
+    get_design_partner_qualification,
+    list_authorized_human_users,
+    reauthorize_qualified_document_upload,
+    record_customer_data_access_outcome,
 )
 from ai_fde.modules.economics.service import (
     EconomicCaseNotFoundError,
@@ -107,6 +117,7 @@ from ai_fde.modules.evidence.service import (
     EvidenceValidationError,
     create_evidence_asset,
     list_evidence,
+    normalize_evidence_file_name,
 )
 from ai_fde.modules.identity.oidc import OIDCProvider, OIDCProviderError
 from ai_fde.modules.identity.sessions import (
@@ -145,11 +156,6 @@ from ai_fde.modules.workflows.service import (
 )
 
 router = APIRouter()
-
-
-@router.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(status="ok", service="ai-fde-api")
 
 
 @router.get("/auth/login", response_class=RedirectResponse)
@@ -327,6 +333,38 @@ def get_engagement_endpoint(
     return EngagementWorkspaceResponse(
         engagement=EngagementResponse.model_validate(engagement),
         counts=get_engagement_counts(session, engagement_id),
+    )
+
+
+@router.get(
+    "/engagements/{engagement_id}/design-partner-qualification",
+    response_model=DesignPartnerQualificationResponse,
+)
+def get_design_partner_qualification_endpoint(
+    engagement_id: UUID,
+    session: SessionDependency,
+    _access: EngagementReadDependency,
+) -> DesignPartnerQualificationResponse:
+    try:
+        qualification = get_design_partner_qualification(session, engagement_id)
+    except DesignPartnerQualificationNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Design-partner qualification not found.",
+        ) from exc
+    authorized_users = list_authorized_human_users(session, engagement_id)
+    return DesignPartnerQualificationResponse.model_validate(
+        {
+            **vars(qualification),
+            "authorized_users": [
+                {
+                    "operator_id": user.operator_id,
+                    "display_name": user.display_name,
+                    "role": user.role,
+                }
+                for user in authorized_users
+            ],
+        }
     )
 
 
@@ -527,26 +565,148 @@ async def upload_evidence_endpoint(
     operator: OperatorDependency,
     _access: EngagementWriteDependency,
     store: EvidenceStoreDependency,
+    settings: SettingsDependency,
+    response: Response,
     file: Annotated[UploadFile, File()],
     source_timestamp: Annotated[datetime | None, Form()] = None,
-) -> EvidenceResponse:
+    source_key: Annotated[str | None, Form(max_length=120)] = None,
+    workflow_class: Annotated[str | None, Form(max_length=160)] = None,
+    data_classification: Annotated[str | None, Form(max_length=24)] = None,
+    x_correlation_id: Annotated[UUID | None, Header()] = None,
+) -> EvidenceResponse | Response:
+    engagement = session.get_one(Engagement, engagement_id)
+    customer_data_context: AuthorizedCustomerDataContext | None = None
+    if engagement.data_classification == "sanitized":
+        decision = authorize_qualified_document_upload(
+            session,
+            engagement=engagement,
+            operator=operator,
+            source_key=source_key,
+            workflow_class=workflow_class,
+            data_classification=data_classification,
+            content_type=file.content_type or "application/octet-stream",
+            extraction_provider=settings.extraction_provider,
+            provider_allowed_classifications=set(
+                settings.bedrock_allowed_data_classifications
+            ),
+            correlation_id=x_correlation_id,
+        )
+        if not decision.allowed:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": decision.message, "code": decision.decision_code},
+                headers={"X-Correlation-ID": str(decision.correlation_id)},
+            )
+        if decision.context is None:
+            raise RuntimeError("Authorized customer-data access is missing its context.")
+        customer_data_context = decision.context
+        response.headers["X-Correlation-ID"] = str(decision.correlation_id)
     try:
+        safe_file_name = normalize_evidence_file_name(file.filename or "")
         content = await read_evidence_upload(file)
+        if customer_data_context is not None:
+            final_decision = reauthorize_qualified_document_upload(
+                session,
+                engagement_id=engagement_id,
+                operator=operator,
+                source_key=source_key,
+                workflow_class=workflow_class,
+                data_classification=data_classification,
+                content_type=file.content_type or "application/octet-stream",
+                extraction_provider=settings.extraction_provider,
+                provider_allowed_classifications=set(
+                    settings.bedrock_allowed_data_classifications
+                ),
+                correlation_id=customer_data_context.correlation_id,
+                deployment_authority_check=settings.verified_deployment_qualification,
+            )
+            if not final_decision.allowed:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={
+                        "detail": final_decision.message,
+                        "code": final_decision.decision_code,
+                    },
+                    headers={
+                        "X-Correlation-ID": str(final_decision.correlation_id),
+                    },
+                )
+            if final_decision.context is None:
+                raise RuntimeError("Authorized customer-data access is missing its context.")
+            customer_data_context = final_decision.context
         asset = create_evidence_asset(
             session,
             store,
             engagement_id=engagement_id,
             operator=operator,
-            file_name=file.filename or "evidence.txt",
+            file_name=safe_file_name,
             content_type=file.content_type or "application/octet-stream",
             content=content,
             source_timestamp=source_timestamp,
+            design_partner_qualification_id=(
+                customer_data_context.qualification_id
+                if customer_data_context is not None
+                else None
+            ),
+            authorized_source_key=(
+                customer_data_context.source_key
+                if customer_data_context is not None
+                else None
+            ),
+            authorized_workflow_class=(
+                customer_data_context.workflow_class
+                if customer_data_context is not None
+                else None
+            ),
+            data_classification=(
+                customer_data_context.data_classification
+                if customer_data_context is not None
+                else None
+            ),
         )
     except EvidenceTooLargeError as exc:
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
+        if customer_data_context is not None:
+            record_customer_data_access_outcome(
+                session,
+                context=customer_data_context,
+                outcome="DENIED",
+                decision_code="EVIDENCE_TOO_LARGE",
+            )
+        return JSONResponse(
+            status_code=413,
+            content={"detail": str(exc)},
+            headers=_customer_data_correlation_headers(customer_data_context),
+        )
     except EvidenceValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if customer_data_context is not None:
+            record_customer_data_access_outcome(
+                session,
+                context=customer_data_context,
+                outcome="DENIED",
+                decision_code="EVIDENCE_VALIDATION_FAILED",
+            )
+        return JSONResponse(
+            status_code=422,
+            content={"detail": str(exc)},
+            headers=_customer_data_correlation_headers(customer_data_context),
+        )
+    if customer_data_context is not None:
+        record_customer_data_access_outcome(
+            session,
+            context=customer_data_context,
+            outcome="AUTHORIZED",
+            decision_code="AUTHORIZED",
+            evidence_asset_id=asset.id,
+        )
     return EvidenceResponse.model_validate(asset)
+
+
+def _customer_data_correlation_headers(
+    context: AuthorizedCustomerDataContext | None,
+) -> dict[str, str]:
+    if context is None:
+        return {}
+    return {"X-Correlation-ID": str(context.correlation_id)}
 
 
 @router.post(
@@ -562,6 +722,15 @@ def create_note_endpoint(
     _access: EngagementWriteDependency,
     store: EvidenceStoreDependency,
 ) -> EvidenceResponse:
+    engagement = session.get_one(Engagement, engagement_id)
+    if engagement.data_classification == "sanitized":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Sanitized engagements accept customer data only through the qualified "
+                "bounded document path."
+            ),
+        )
     safe_title = "-".join(payload.title.casefold().split())
     asset = create_evidence_asset(
         session,
