@@ -2,7 +2,15 @@
 status: ready
 priority: p1
 issue_id: "002"
-tags: [factory-engineer, phase-3, design-partner, security, operations, mission-control]
+tags:
+  [
+    factory-engineer,
+    phase-3,
+    design-partner,
+    security,
+    operations,
+    mission-control,
+  ]
 dependencies: []
 ---
 
@@ -100,9 +108,9 @@ authorization/idempotency coverage, and rollout documentation. No new execution 
       WorkOrder, Task, Attempt, dispatch, publication, PR, merge, release, or deployment state.
 - [x] Local static, migration, unit, integration/isolation, contract, browser, accessibility,
       Terraform, and production-build gates pass.
-- [ ] An immutable Phase 3 candidate evidence package records exact revisions and honest remaining
+- [x] An immutable Phase 3 candidate evidence package records exact revisions and honest remaining
       live gates without secret values.
-- [ ] Both repository branches are committed and pushed; Preview is verified.
+- [x] Both repository branches are committed and pushed; Preview is verified.
 - [x] Production remains on the Phase 2 revision unless the exact Phase 3 candidate receives a
       separate explicit promotion authorization.
 
@@ -168,6 +176,33 @@ authorization/idempotency coverage, and rollout documentation. No new execution 
   isolated restore procedures against the exact AWS release.
 - Run candidate readiness, the fixed broker binding migration, post-activation verification, and
   the live Mission Control receipt before claiming design-partner production qualification.
+
+### 2026-09-05 - GitHub gate and Preview candidate sealed
+
+**By:** Codex
+
+**Actions:**
+
+- Committed and pushed Factory Engineer revision `f153912d888a5ce3d3bf743e726bafbff573f887`
+  and Mission Control revision `0f8267e1ba210c03c35082848b1d7bb7cebf8d83` on the isolated
+  Phase 3 branches.
+- Corrected CI-only settings leakage in unit tests and isolated the design-partner browser server
+  from the hosted-demo acceptance server.
+- Passed GitHub Actions run `33951444158` with every repository, infrastructure, container,
+  frontend, accessibility, and design-partner gate green.
+- Deployed the exact Factory Engineer revision to Vercel target `preview` as deployment
+  `dpl_7WYwuPa9mH97JjNR1EG2xmWpuc4S`; no production promotion occurred.
+- Sealed `candidate-evidence.json` with exact revisions, test results, Preview identity, the
+  unchanged Phase 2 production baseline, and every unperformed live gate marked `NOT_RUN`.
+
+**Remaining live gates:**
+
+- Run and KMS-seal the real AWS deployment, Auth0 browser, credential rotation/revocation,
+  deletion-boundary, and isolated-restore evidence for this exact candidate.
+- Apply the already-pushed Mission Control revision only in the authorized live environment,
+  capture its bounded draft-import receipt, and review the complete evidence set.
+- Request separate explicit promotion authorization for this exact candidate. Until then,
+  design-partner production qualification remains false and Phase 2 remains in production.
 
 ## Notes
 
