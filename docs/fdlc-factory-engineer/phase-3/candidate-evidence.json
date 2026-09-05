@@ -1,0 +1,139 @@
+{
+  "schema": "fdlc.phase-3-candidate-evidence/v1",
+  "candidate_id": "phase-3-f153912-0f8267e",
+  "generated_at": "2026-09-05T07:06:49Z",
+  "status": "PREVIEW_VERIFIED_LIVE_GATES_PENDING",
+  "content_digest": "sha256:3418a0d15cc71d80ed448316ecdcf025dcd6ea246bd3e088164a3e2c825a3956",
+  "digest_algorithm": "sha256 over UTF-8 compact JSON with recursively sorted object keys, arrays preserved, and content_digest omitted",
+  "signature": null,
+  "exact_candidate": {
+    "factory_engineer_revision": "f153912d888a5ce3d3bf743e726bafbff573f887",
+    "factory_engineer_branch": "codex/phase-3-design-partner-qualification",
+    "mission_control_revision": "0f8267e1ba210c03c35082848b1d7bb7cebf8d83",
+    "mission_control_branch": "codex/phase-3-design-partner-qualification",
+    "database_revision": "b7e2c5d4a901"
+  },
+  "application_production_baseline": {
+    "release_revision": "196ab3ad7b1114bcbce2ed141bec188505909043",
+    "deployment_id": "dpl_Mm1hRiJWrtcxJRaVdoWyjfCd9Pty",
+    "url": "https://ai-fde-agent.vercel.app",
+    "rollback_deployment_id": "dpl_EJ3bfZ9tz3Tk3TTFev7DmJAufFY3",
+    "phase": "PHASE_2",
+    "changed_by_this_candidate": false
+  },
+  "preview": {
+    "provider": "vercel",
+    "deployment_id": "dpl_7WYwuPa9mH97JjNR1EG2xmWpuc4S",
+    "url": "https://ai-fde-agent-o4sf0r2w5-jaydubya818.vercel.app",
+    "target": "preview",
+    "ready_state": "READY",
+    "production_promotion_performed": false
+  },
+  "qualification_evidence_fields": {
+    "application_revision": "f153912d888a5ce3d3bf743e726bafbff573f887",
+    "mission_control_revision": "0f8267e1ba210c03c35082848b1d7bb7cebf8d83",
+    "production_deployment_id": "dpl_Mm1hRiJWrtcxJRaVdoWyjfCd9Pty",
+    "service_deployment_identity": null,
+    "design_partner_qualification_id": null,
+    "authentication_configuration_identity": null,
+    "ingestion_schema_version": "fdlc.factory-deployment-package/v1",
+    "monitoring_configuration": {
+      "source": "infrastructure/terraform/design-partner/observability.tf",
+      "source_revision": "f153912d888a5ce3d3bf743e726bafbff573f887",
+      "terraform_validated": true,
+      "live_configuration_identity": null
+    },
+    "backup_restore_evidence_id": null,
+    "secret_rotation_evidence_id": null,
+    "browser_acceptance_result": "PASS_9_OF_9",
+    "negative_test_result": "PASS",
+    "mission_control_draft_receipt_id": null,
+    "rollback_target": "dpl_EJ3bfZ9tz3Tk3TTFev7DmJAufFY3"
+  },
+  "verification": {
+    "github_actions": {
+      "run_id": 33951444158,
+      "url": "https://github.com/jaydubya818/AI-FDE-Agent/actions/runs/33951444158",
+      "conclusion": "success",
+      "verified_revision": "f153912d888a5ce3d3bf743e726bafbff573f887"
+    },
+    "python": {
+      "tests_passed": 352,
+      "tests_failed": 0,
+      "required_postgres_coverage": true,
+      "ruff": "PASS",
+      "mypy": "PASS",
+      "generated_contract": "PASS"
+    },
+    "web": {
+      "browser_tests_passed": 9,
+      "browser_tests_failed": 0,
+      "accessibility_tests_included": true,
+      "production_build": "PASS",
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "prettier": "PASS"
+    },
+    "infrastructure": {
+      "terraform_format": "PASS",
+      "terraform_init_without_backend": "PASS",
+      "terraform_validate": "PASS",
+      "alembic_single_head": "b7e2c5d4a901",
+      "alembic_schema_drift": "PASS",
+      "api_container_non_root": "PASS",
+      "worker_container_non_root": "PASS",
+      "rds_ca_bundle_sha256": "e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3"
+    },
+    "negative_proofs": [
+      "tampered or expired deployment qualification is denied",
+      "cross-partner, wrong-source, wrong-workflow, and wrong-classification access is denied",
+      "stale worker authority and prior worker roles are denied",
+      "S3 write compensation and reads use exact object VersionId",
+      "permanent deletion verifies all object versions and delete markers are absent",
+      "Mission Control import creates only a PLANNING mission and DRAFT plan",
+      "Mission Control import creates no execution, publication, merge, release, or deployment authority"
+    ]
+  },
+  "live_gates": {
+    "aws_service_deployment_identity": {
+      "status": "NOT_RUN",
+      "evidence_id": null
+    },
+    "auth0_real_browser_validation": {
+      "status": "NOT_RUN",
+      "evidence_id": null
+    },
+    "credential_rotation_and_revocation": {
+      "status": "NOT_RUN",
+      "evidence_id": null
+    },
+    "isolated_backup_restore": {
+      "status": "NOT_RUN",
+      "evidence_id": null
+    },
+    "deletion_boundary_observation": {
+      "status": "NOT_RUN",
+      "evidence_id": null
+    },
+    "candidate_readiness_and_activation": {
+      "status": "NOT_RUN",
+      "qualification_id": null
+    },
+    "mission_control_live_receipt": {
+      "status": "NOT_RUN",
+      "receipt_id": null,
+      "live_convex_apply_performed": false
+    }
+  },
+  "release_claims": {
+    "application_production": "PHASE_2_UNCHANGED",
+    "design_partner_production_qualified": false,
+    "general_customer_production_qualified": false
+  },
+  "authorization": {
+    "preview_authorized": true,
+    "production_promotion_authorized_for_exact_candidate": false,
+    "required_next_authorization": "Separate explicit authorization to promote this exact candidate after all live gates are sealed and reviewed"
+  },
+  "secrets_in_record": false
+}
