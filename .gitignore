@@ -26,4 +26,6 @@ generated/
 .terraform/
 *.tfstate
 *.tfstate.*
+*.auto.tfvars
+*.tfplan
 .vercel

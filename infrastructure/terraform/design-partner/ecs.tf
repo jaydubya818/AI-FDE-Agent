@@ -45,7 +45,7 @@ locals {
     name      = "AI_FDE_DEPLOYMENT_QUALIFICATION_RECORD"
     valueFrom = "${aws_secretsmanager_secret.qualification.arn}:::${var.pending_qualification_record_version_id}"
   }]
-  api_secrets = concat([
+  api_runtime_secrets = var.api_runtime_secret_version_id == null ? [] : [
     {
       name      = "AI_FDE_DATABASE_URL"
       valueFrom = "${aws_secretsmanager_secret.runtime["api"].arn}:AI_FDE_DATABASE_URL::${var.api_runtime_secret_version_id}"
@@ -54,15 +54,27 @@ locals {
       name      = "AI_FDE_OIDC_CLIENT_SECRET"
       valueFrom = "${aws_secretsmanager_secret.runtime["api"].arn}:AI_FDE_OIDC_CLIENT_SECRET::${var.api_runtime_secret_version_id}"
     },
-  ], local.active_qualification_record_secret)
+  ]
+  api_secrets    = concat(local.api_runtime_secrets, local.active_qualification_record_secret)
   worker_secrets = local.active_qualification_record_secret
-  migration_secrets = concat([{
+  migration_runtime_secrets = var.migration_runtime_secret_version_id == null ? [] : [{
     name      = "AI_FDE_MIGRATION_DATABASE_URL"
     valueFrom = "${aws_secretsmanager_secret.runtime["migration"].arn}:AI_FDE_MIGRATION_DATABASE_URL::${var.migration_runtime_secret_version_id}"
     }, {
     name      = "AI_FDE_APP_DATABASE_PASSWORD"
     valueFrom = "${aws_secretsmanager_secret.runtime["migration"].arn}:AI_FDE_APP_DATABASE_PASSWORD::${var.migration_runtime_secret_version_id}"
-  }], local.pending_qualification_record_secret)
+  }]
+  migration_secrets = concat(local.migration_runtime_secrets, local.pending_qualification_record_secret)
+}
+
+check "runtime_secret_versions_before_service_enablement" {
+  assert {
+    condition = !var.services_enabled || (
+      var.api_runtime_secret_version_id != null &&
+      var.migration_runtime_secret_version_id != null
+    )
+    error_message = "Both exact runtime secret VersionIds are required before services_enabled may be true."
+  }
 }
 
 resource "aws_cloudwatch_log_group" "runtime" {

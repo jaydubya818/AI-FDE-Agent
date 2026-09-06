@@ -129,20 +129,25 @@ variable "worker_engagement_id" {
 }
 
 variable "bedrock_model_id" {
-  description = "Evaluation-approved version-pinned regional foundation model ID."
+  description = "Evaluation-approved US geographic cross-region inference profile ID."
   type        = string
+
+  validation {
+    condition     = can(regex("^us\\.[A-Za-z0-9:.-]+$", var.bedrock_model_id))
+    error_message = "bedrock_model_id must be one exact US geographic inference profile ID."
+  }
 }
 
 variable "bedrock_model_arn" {
-  description = "Exact ARN authorized for Bedrock model invocation."
+  description = "Exact account-qualified ARN of the approved US geographic inference profile."
   type        = string
 
   validation {
     condition = (
-      can(regex("^arn:aws(|-us-gov|-cn|-iso|-iso-b):bedrock:[a-z0-9-]+::foundation-model/[A-Za-z0-9:.-]+$", var.bedrock_model_arn)) &&
+      can(regex("^arn:aws(|-us-gov|-cn|-iso|-iso-b):bedrock:[a-z0-9-]+:[0-9]{12}:inference-profile/us\\.[A-Za-z0-9:.-]+$", var.bedrock_model_arn)) &&
       !strcontains(var.bedrock_model_arn, "*")
     )
-    error_message = "bedrock_model_arn must be one exact regional accountless foundation-model ARN."
+    error_message = "bedrock_model_arn must be one exact account-qualified US geographic inference-profile ARN."
   }
 }
 
@@ -297,22 +302,26 @@ variable "sanitized_data_enabled" {
 }
 
 variable "api_runtime_secret_version_id" {
-  description = "Exact signed AWSCURRENT VersionId pinned into both API runtime-secret JSON-key selectors."
+  description = "Exact signed AWSCURRENT VersionId pinned into both API runtime-secret JSON-key selectors; null only while services are disabled during initial bootstrap."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9-]{32,64}$", var.api_runtime_secret_version_id))
-    error_message = "api_runtime_secret_version_id must be an exact 32-64 character Secrets Manager VersionId."
+    condition     = var.api_runtime_secret_version_id == null || can(regex("^[A-Za-z0-9-]{32,64}$", var.api_runtime_secret_version_id))
+    error_message = "api_runtime_secret_version_id must be null during disabled bootstrap or an exact 32-64 character Secrets Manager VersionId."
   }
 }
 
 variable "migration_runtime_secret_version_id" {
-  description = "Exact signed AWSCURRENT VersionId pinned into both migration/owner runtime-secret JSON-key selectors."
+  description = "Exact signed AWSCURRENT VersionId pinned into both migration/owner runtime-secret JSON-key selectors; null only while services are disabled during initial bootstrap."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9-]{32,64}$", var.migration_runtime_secret_version_id))
-    error_message = "migration_runtime_secret_version_id must be an exact 32-64 character Secrets Manager VersionId."
+    condition     = var.migration_runtime_secret_version_id == null || can(regex("^[A-Za-z0-9-]{32,64}$", var.migration_runtime_secret_version_id))
+    error_message = "migration_runtime_secret_version_id must be null during disabled bootstrap or an exact 32-64 character Secrets Manager VersionId."
   }
 }
 

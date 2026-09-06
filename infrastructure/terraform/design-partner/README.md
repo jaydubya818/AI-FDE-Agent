@@ -50,8 +50,10 @@ product sanitized-data ready by itself.
   list the bucket or read its location, and KMS decrypt is usable only through regional S3 with the
   exact bucket-ARN encryption context. The worker cannot write or delete evidence. It has no network
   ingress; API, web, worker, and migration use separate security groups.
-- Worker Bedrock authority is one canonical, accountless regional `foundation-model` ARN. Inference
-  profiles, cross-region resources, wildcards, and account-qualified model ARNs are rejected.
+- Worker Bedrock authority is one canonical, account-qualified US geographic `inference-profile`
+  ARN plus the three exact underlying regional `foundation-model` ARNs required by AWS for
+  cross-region inference. Global inference, alternate destinations, fallback models, and wildcard
+  resources are rejected.
 - The migration task receives `secretsmanager:PutSecretValue` only when an exact existing
   `package_retrieval_target_secret_arn` is configured. It cannot create, read, list, or delete
   secrets through that policy. For a customer-managed receiving key, configure its exact ARN in
@@ -69,7 +71,7 @@ product sanitized-data ready by itself.
    worker operator UUID, and the single pilot `worker_engagement_id`. Keep the worker engagement
    null until that boundary is approved; sanitized data cannot be enabled while it is null. Keep
    Bedrock classifications at `PUBLIC`/`INTERNAL` unless an explicit data review authorizes
-   `CONFIDENTIAL`; `RESTRICTED` is rejected. Supply one concrete Bedrock ARN, never a wildcard.
+   `CONFIDENTIAL`; `RESTRICTED` is rejected. Supply the exact approved inference-profile ARN, never a wildcard.
 4. Initialize remote state, then validate and plan:
 
    ```sh
@@ -85,7 +87,8 @@ product sanitized-data ready by itself.
    ```
 
 5. Populate the two role-specific runtime secrets out of band. Use TLS-verifying PostgreSQL
-   URLs for owner and API credentials. Set `api_runtime_secret_version_id` and
+   URLs for owner and API credentials. During the initial disabled bootstrap these two values may
+   remain `null`; no runtime secret selectors are emitted. Set `api_runtime_secret_version_id` and
    `migration_runtime_secret_version_id` to their exact signed `AWSCURRENT` VersionIds before
    starting tasks. The worker uses short-lived RDS IAM authentication:
 
@@ -165,8 +168,8 @@ PYTHONPATH=src uv run python -m scripts.verify_design_partner_readiness \
   --worker-operator-id <canonical-worker-operator-uuid> \
   --worker-engagement-id <canonical-engagement-uuid> \
   --bedrock-evaluation-job <completed-job-id-or-arn> \
-  --bedrock-model-id <evaluated-foundation-model-id> \
-  --bedrock-model-arn <exact-accountless-regional-foundation-model-arn> \
+  --bedrock-model-id <approved-us-inference-profile-id> \
+  --bedrock-model-arn <exact-account-qualified-inference-profile-arn> \
   --api-secret <api-secret-arn> \
   --migration-secret <migration-secret-arn> \
   --qualification-secret <qualification-secret-arn> \

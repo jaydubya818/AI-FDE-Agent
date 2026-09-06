@@ -50,11 +50,11 @@ resource "aws_iam_role_policy_attachment" "execution" {
 }
 
 data "aws_iam_policy_document" "execution_secrets" {
-  for_each = aws_secretsmanager_secret.runtime
+  for_each = toset(["api", "migration"])
   statement {
     sid       = "ReadRuntimeSecret"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [each.value.arn, aws_secretsmanager_secret.qualification.arn]
+    resources = [aws_secretsmanager_secret.runtime[each.key].arn, aws_secretsmanager_secret.qualification.arn]
   }
   statement {
     sid       = "DecryptRuntimeSecret"
@@ -83,10 +83,10 @@ resource "aws_iam_role_policy" "worker_execution_qualification" {
 }
 
 resource "aws_iam_role_policy" "execution_secrets" {
-  for_each = data.aws_iam_policy_document.execution_secrets
+  for_each = toset(["api", "migration"])
   name     = "runtime-secret"
   role     = aws_iam_role.execution[each.key].id
-  policy   = each.value.json
+  policy   = data.aws_iam_policy_document.execution_secrets[each.key].json
 }
 
 resource "aws_iam_role" "task" {
@@ -208,11 +208,21 @@ resource "aws_iam_role_policy" "worker_evidence" {
   policy = data.aws_iam_policy_document.worker_evidence_read[0].json
 }
 
+locals {
+  bedrock_foundation_model_id = trimprefix(var.bedrock_model_id, "us.")
+  bedrock_destination_regions = ["us-east-1", "us-east-2", "us-west-2"]
+  bedrock_destination_model_arns = [
+    for region in local.bedrock_destination_regions :
+    "arn:${data.aws_partition.current.partition}:bedrock:${region}::foundation-model/${local.bedrock_foundation_model_id}"
+  ]
+  bedrock_invoke_resource_arns = concat([var.bedrock_model_arn], local.bedrock_destination_model_arns)
+}
+
 data "aws_iam_policy_document" "bedrock" {
   statement {
     sid       = "InvokeSelectedModel"
     actions   = ["bedrock:InvokeModel"]
-    resources = [var.bedrock_model_arn]
+    resources = local.bedrock_invoke_resource_arns
   }
 }
 
@@ -225,16 +235,16 @@ resource "aws_iam_role_policy" "worker_bedrock" {
     precondition {
       condition = startswith(
         var.bedrock_model_arn,
-        "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}::foundation-model/",
+        "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/",
       )
-      error_message = "bedrock_model_arn must use the active AWS partition and configured region."
+      error_message = "bedrock_model_arn must use the active AWS partition, account, and configured source region."
     }
     precondition {
       condition = var.bedrock_model_id == trimprefix(
         var.bedrock_model_arn,
-        "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}::foundation-model/",
+        "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/",
       )
-      error_message = "bedrock_model_id must be the exact foundation-model resource ID."
+      error_message = "bedrock_model_id must be the exact inference-profile resource ID."
     }
   }
 }
@@ -497,9 +507,6 @@ locals {
       Effect    = "Deny"
       Principal = { AWS = "*" }
       Action = [
-        "secretsmanager:DeleteResourcePolicy",
-        "secretsmanager:DeleteSecret",
-        "secretsmanager:PutResourcePolicy",
         "secretsmanager:PutSecretValue",
         "secretsmanager:RotateSecret",
         "secretsmanager:UpdateSecret",
