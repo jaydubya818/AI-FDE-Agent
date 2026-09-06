@@ -5,7 +5,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from ai_fde.models import EconomicCase, Engagement, Operator, WorkflowVersion
@@ -141,7 +141,7 @@ def calculate_economic_case(
         economic_case.scenarios = scenarios
         economic_case.assumptions = _clean_assumptions(assumptions)
 
-    stale_after_economic_change(session, engagement_id)
+    stale_after_economic_change(session, engagement_id, actor_id=operator.id)
     record_audit(
         session,
         engagement_id=engagement_id,
@@ -278,6 +278,15 @@ def approve_economic_case(
     economic_case_id: UUID,
     operator: Operator,
 ) -> EconomicCase:
+    engagement = session.scalar(
+        select(Engagement).where(Engagement.id == engagement_id).with_for_update()
+    )
+    if engagement is None:
+        raise EconomicCaseNotFoundError(str(engagement_id))
+    if engagement.data_lifecycle_status != "active":
+        raise EconomicStageGateError(
+            "Economics approval is unavailable while engagement deletion is pending or failed."
+        )
     economic_case = session.scalar(
         select(EconomicCase)
         .where(
@@ -294,12 +303,20 @@ def approve_economic_case(
     if target is None or target.status != "approved":
         raise EconomicStageGateError("The target workflow dependency is no longer approved.")
 
+    session.execute(
+        update(EconomicCase)
+        .where(
+            EconomicCase.engagement_id == engagement_id,
+            EconomicCase.id != economic_case.id,
+            EconomicCase.status == "approved",
+        )
+        .values(status="stale")
+    )
+    stale_after_economic_change(session, engagement_id, actor_id=operator.id)
     economic_case.status = "approved"
     economic_case.approved_by_id = operator.id
     economic_case.approved_at = datetime.now(UTC)
-    engagement = session.get(Engagement, engagement_id)
-    if engagement is not None:
-        engagement.lifecycle_stage = "economic_case"
+    engagement.lifecycle_stage = "economic_case"
     record_audit(
         session,
         engagement_id=engagement_id,

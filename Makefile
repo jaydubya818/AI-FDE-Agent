@@ -11,7 +11,7 @@ migrate:
 	uv run alembic upgrade head
 
 dev:
-	pnpm dev
+	AI_FDE_WORKER_HEARTBEAT_ENABLED=false pnpm dev
 
 seed:
 	PYTHONPATH=src uv run python -m ai_fde.seed

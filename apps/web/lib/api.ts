@@ -10,13 +10,27 @@ import type {
   EconomicCase,
   Evidence,
   EvidenceClassification,
+  FactoryHandoffWorkspace,
+  FactoryHandoffPrerequisites,
+  FactoryOpportunity,
+  FactoryOpportunityInput,
+  FDLCReadinessAssessment,
   ImplementationArtifact,
   InternalAlphaScorecard,
   OperatingModel,
   Workflow,
   WorkflowStep,
   WorkflowWorkspace,
+  CustomerFactoryModel,
+  CustomerFactoryModelInput,
+  DeploymentPackage,
+  DeploymentPackageInput,
+  DesignPartnerQualification,
+  PackageRetrievalEvent,
+  ReadinessAssessmentInput,
+  FactorySourceReference,
 } from "./types";
+import type { BackendEnum } from "./backend-contract.generated";
 import {
   hostedDemoEnabled,
   hostedDemoExport,
@@ -40,18 +54,20 @@ export class ApiError extends Error {
 export type AuthenticatedOperator = {
   id: string;
   display_name: string;
-  auth_mode: "development" | "oidc";
+  auth_mode: BackendEnum<"operatorAuthMode">;
   sanitized_data_allowed: boolean;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (hostedDemoEnabled) return hostedDemoRequest<T>(path, init);
 
+  const headers = browserRequestHeaders(init);
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       cache: "no-store",
       ...init,
+      headers,
       credentials: "include",
     });
   } catch {
@@ -63,6 +79,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
+}
+
+function browserRequestHeaders(init?: RequestInit): Headers {
+  const headers = new Headers(init?.headers);
+  headers.set("X-Correlation-ID", globalThis.crypto.randomUUID());
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    headers.set("X-AI-FDE-Intent", "browser-mutation");
+  }
+  return headers;
 }
 
 async function responseError(response: Response): Promise<ApiError> {
@@ -110,6 +136,12 @@ export function getWorkspace(
   engagementId: string,
 ): Promise<EngagementWorkspace> {
   return request(`/engagements/${engagementId}`);
+}
+
+export function getDesignPartnerQualification(
+  engagementId: string,
+): Promise<DesignPartnerQualification> {
+  return request(`/engagements/${engagementId}/design-partner-qualification`);
 }
 
 export function getInternalAlphaScorecard(): Promise<InternalAlphaScorecard> {
@@ -162,6 +194,7 @@ export async function downloadEngagementExport(
     `${API_URL}/engagements/${engagementId}/data-lifecycle/exports`,
     {
       method: "POST",
+      headers: browserRequestHeaders({ method: "POST" }),
       credentials: "include",
     },
   );
@@ -209,9 +242,19 @@ export function getOperatingModel(
 export function uploadEvidence(
   engagementId: string,
   file: File,
+  authorization?: {
+    sourceKey: string;
+    workflowClass: string;
+    dataClassification: DesignPartnerQualification["data_classification"];
+  },
 ): Promise<Evidence> {
   const body = new FormData();
   body.set("file", file);
+  if (authorization) {
+    body.set("source_key", authorization.sourceKey);
+    body.set("workflow_class", authorization.workflowClass);
+    body.set("data_classification", authorization.dataClassification);
+  }
   return request(`/engagements/${engagementId}/evidence`, {
     method: "POST",
     body,
@@ -394,5 +437,181 @@ export function generateImplementationPacket(
     {
       method: "POST",
     },
+  );
+}
+
+export function getFactoryHandoffWorkspace(
+  engagementId: string,
+): Promise<FactoryHandoffWorkspace> {
+  return request(`/engagements/${engagementId}/factory-handoff`);
+}
+
+export function getFactoryHandoffPrerequisites(
+  engagementId: string,
+): Promise<FactoryHandoffPrerequisites> {
+  return request(`/engagements/${engagementId}/factory-handoff/prerequisites`);
+}
+
+export function createCustomerFactoryModel(
+  engagementId: string,
+  payload: CustomerFactoryModelInput,
+): Promise<CustomerFactoryModel> {
+  return request(`/engagements/${engagementId}/customer-factory-models`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveCustomerFactoryModel(
+  engagementId: string,
+  modelId: string,
+): Promise<CustomerFactoryModel> {
+  return request(
+    `/engagements/${engagementId}/customer-factory-models/${modelId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function approveSyntheticCustomerModel(
+  engagementId: string,
+): Promise<CustomerFactoryModel> {
+  return request(
+    `/engagements/${engagementId}/customer-factory-models/bootstrap`,
+    { method: "POST" },
+  );
+}
+
+export function assessSyntheticFactoryOpportunity(
+  engagementId: string,
+): Promise<FactoryOpportunity> {
+  return request(
+    `/engagements/${engagementId}/factory-opportunities/bootstrap`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function createFactoryOpportunity(
+  engagementId: string,
+  payload: FactoryOpportunityInput,
+): Promise<FactoryOpportunity> {
+  return request(`/engagements/${engagementId}/factory-opportunities`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function selectFactoryOpportunity(
+  engagementId: string,
+  opportunityId: string,
+  reason: string,
+): Promise<FactoryOpportunity> {
+  return request(
+    `/engagements/${engagementId}/factory-opportunities/${opportunityId}/select`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export function assessSyntheticReadiness(
+  engagementId: string,
+): Promise<FDLCReadinessAssessment> {
+  return request(`/engagements/${engagementId}/fdlc-readiness/bootstrap`, {
+    method: "POST",
+  });
+}
+
+export function createReadinessAssessment(
+  engagementId: string,
+  payload: ReadinessAssessmentInput,
+): Promise<FDLCReadinessAssessment> {
+  return request(`/engagements/${engagementId}/fdlc-readiness`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveReadiness(
+  engagementId: string,
+  assessmentId: string,
+): Promise<FDLCReadinessAssessment> {
+  return request(
+    `/engagements/${engagementId}/fdlc-readiness/${assessmentId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function generateSyntheticDeploymentPackage(
+  engagementId: string,
+): Promise<DeploymentPackage> {
+  return request(`/engagements/${engagementId}/deployment-packages/bootstrap`, {
+    method: "POST",
+  });
+}
+
+export function createDeploymentPackage(
+  engagementId: string,
+  payload: DeploymentPackageInput,
+): Promise<DeploymentPackage> {
+  return request(`/engagements/${engagementId}/deployment-packages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function submitDeploymentPackage(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<DeploymentPackage> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/review`,
+    { method: "POST" },
+  );
+}
+
+export function approveDeploymentPackage(
+  engagementId: string,
+  packageVersionId: string,
+  authorityBasisRef?: FactorySourceReference,
+): Promise<DeploymentPackage> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/approve`,
+    {
+      method: "POST",
+      ...(authorityBasisRef
+        ? {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ authority_basis_ref: authorityBasisRef }),
+          }
+        : {}),
+    },
+  );
+}
+
+export function publishDeploymentPackage(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<DeploymentPackage> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/publish`,
+    { method: "POST" },
+  );
+}
+
+export function simulateMissionControlRetrieval(
+  engagementId: string,
+  packageVersionId: string,
+): Promise<PackageRetrievalEvent> {
+  return request(
+    `/engagements/${engagementId}/deployment-packages/${packageVersionId}/simulate-retrieval`,
+    { method: "POST" },
   );
 }

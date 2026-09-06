@@ -233,7 +233,7 @@ export function DeliveryEvaluationWorkspace({
                 label="Delivery method"
                 name="delivery_method"
                 options={[
-                  ["ai_fde", "AI-FDE"],
+                  ["ai_fde", "Factory Engineer"],
                   ["conventional", "Conventional"],
                 ]}
               />
@@ -334,7 +334,7 @@ export function DeliveryEvaluationWorkspace({
                     <div>
                       <p className="text-xs font-extrabold">
                         {assessment.delivery_method === "ai_fde"
-                          ? "AI-FDE"
+                          ? "Factory Engineer"
                           : "Conventional"}
                         {" · "}
                         {assessment.perspective} · {assessment.outcome}
