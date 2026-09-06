@@ -21,7 +21,7 @@ resource "aws_kms_alias" "evidence" {
 }
 
 resource "aws_kms_key" "evidence_signing" {
-  description              = "${local.name} asymmetric production qualification evidence signer"
+  description              = "${local.name} asymmetric deployment qualification evidence signer"
   deletion_window_in_days  = 30
   key_usage                = "SIGN_VERIFY"
   customer_master_key_spec = "RSA_3072"
@@ -183,14 +183,16 @@ resource "aws_db_parameter_group" "postgres" {
   name   = "${local.name}-postgres16"
   family = "postgres16"
   parameter {
-    name  = "rds.force_ssl"
-    value = "1"
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
   }
 }
 
 resource "aws_db_instance" "postgres" {
   identifier                          = local.name
   engine                              = "postgres"
+  engine_version                      = "16.15"
   instance_class                      = var.database_instance_class
   allocated_storage                   = 30
   max_allocated_storage               = 100

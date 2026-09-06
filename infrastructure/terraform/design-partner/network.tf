@@ -199,6 +199,10 @@ resource "aws_security_group" "worker_tasks" {
   vpc_id      = aws_vpc.main.id
 
   egress = []
+
+  lifecycle {
+    ignore_changes = [egress]
+  }
 }
 
 resource "aws_security_group" "migration_tasks" {
@@ -207,6 +211,10 @@ resource "aws_security_group" "migration_tasks" {
   vpc_id      = aws_vpc.main.id
 
   egress = []
+
+  lifecycle {
+    ignore_changes = [egress]
+  }
 }
 
 resource "aws_security_group" "database" {
@@ -447,7 +455,7 @@ locals {
         Effect    = "Allow"
         Principal = "*"
         Action    = ["bedrock:InvokeModel"]
-        Resource  = [var.bedrock_model_arn]
+        Resource  = local.bedrock_invoke_resource_arns
       }]
     })
     "ecr.api" = jsonencode({
