@@ -70,7 +70,8 @@ def test_verified_model_to_implementation_specification_lifecycle(
 
     with operator_session(test_operator.id) as session:
         while job := lease_next_job(session, engagement_id, lease_seconds=30):
-            process_job(session, store, job)
+            assert job.lease_token is not None
+            process_job(session, store, job, lease_token=job.lease_token)
 
     with operator_session(test_operator.id) as session:
         operator = session.get_one(Operator, test_operator.id)

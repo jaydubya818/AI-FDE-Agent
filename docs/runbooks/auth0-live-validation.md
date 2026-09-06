@@ -52,5 +52,12 @@ tokens, or screenshots containing those values into this record.
 
 The record is incomplete until every box is checked and every evidence reference resolves to a
 sanitized screenshot, HTTP transcript, or test record. Repository contract tests do not satisfy
-this live gate. Pass its validation record ID to `verify_design_partner_readiness.py`; never invent
-an ID for an unrun tenant test.
+this live gate. Create the exact sanitized request-ID/URL/status-code observation object required by
+`scripts.seal_auth0_observations`, then have the named independent evidence-issuer operator inspect
+the controlled browser evidence and run that sealer. This is a trusted-operator KMS attestation, not
+an autonomous browser verifier. It emits `fdlc.production-qualification-evidence/v2` evidence bound
+to the exact release/deployment, issuer, key, and producer. Pass that file through
+`--auth0-validation-record`; an unsigned file, arbitrary check/status list, or free-form validation
+ID is not accepted. Follow
+[qualification evidence records](qualification-evidence-records.md), and never sign an unrun tenant
+test.

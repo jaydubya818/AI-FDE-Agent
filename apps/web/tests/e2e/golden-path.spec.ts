@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const acceptedClaims = [
@@ -19,7 +20,7 @@ async function reviewClaim(
 ) {
   const heading = page.getByRole("heading", { level: 3, name: summary });
   const card = page.getByRole("article").filter({ has: heading });
-  await expect(card.getByText("Exact evidence")).toBeVisible();
+  await expect(card.getByText("Exact source evidence")).toBeVisible();
   await card
     .getByRole("textbox", { name: `Decision note for: ${summary}` })
     .fill(
@@ -31,13 +32,14 @@ async function reviewClaim(
   await expect(heading).toBeHidden();
 }
 
-test("synthetic Acme reaches an approved implementation packet", async ({
+test("synthetic Acme reaches the governed package-retrieval boundary", async ({
   page,
 }, testInfo) => {
   test.setTimeout(150_000);
   await page.setViewportSize({ width: 1440, height: 960 });
 
   const consoleErrors: string[] = [];
+  const apiRequests: string[] = [];
   const failedApiResponses: string[] = [];
   const failedApiRequests: string[] = [];
 
@@ -49,6 +51,9 @@ test("synthetic Acme reaches an approved implementation packet", async ({
       failedApiResponses.push(`${response.status()} ${response.url()}`);
     }
   });
+  page.on("request", (request) => {
+    if (request.url().includes("/api/")) apiRequests.push(request.url());
+  });
   page.on("requestfailed", (request) => {
     if (request.url().includes("/api/")) {
       failedApiRequests.push(
@@ -57,15 +62,36 @@ test("synthetic Acme reaches an approved implementation packet", async ({
     }
   });
 
-  await page.goto("/");
+  const landingResponse = await page.goto("/");
+  expect(landingResponse).not.toBeNull();
+  const landingHeaders = landingResponse!.headers();
+  expect(landingHeaders["content-security-policy"]).toContain(
+    "frame-ancestors 'none'",
+  );
+  expect(landingHeaders["x-content-type-options"]).toBe("nosniff");
+  expect(landingHeaders["x-frame-options"]).toBe("DENY");
+  expect(landingHeaders["referrer-policy"]).toBe("no-referrer");
   await expect(page.getByText("Checking operator session")).toBeHidden();
   await expect(page.getByText("Loading engagements…")).toBeHidden();
+  await expect(page).toHaveTitle("Factory Engineer · FDLC");
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Turn company context into a verified operating model.",
+      name: "Turn enterprise reality into a deployable software factory.",
     }),
   ).toBeVisible();
+  const ecosystemNavigation = page.getByRole("navigation", {
+    name: "FDLC ecosystem",
+  });
+  await expect(
+    ecosystemNavigation.getByRole("link", { name: /Framework/ }),
+  ).toHaveAttribute("href", "https://fdlc.ai/framework");
+  await expect(
+    ecosystemNavigation.getByRole("link", { name: /^Guide/ }),
+  ).toHaveAttribute("href", "https://ai-software-factory-mastery.vercel.app");
+  await expect(
+    ecosystemNavigation.getByRole("link", { name: /Mission Control/ }),
+  ).toHaveAttribute("href", "https://fdlc.ai/mission-control");
 
   const engagementLink = page
     .getByRole("link", {
@@ -169,12 +195,85 @@ test("synthetic Acme reaches an approved implementation packet", async ({
   await expect(implementationSpec).toContainText("annual_net_benefit");
   await expect(implementationSpec).toContainText("No production deployment");
 
+  await page.getByRole("button", { name: "Approve customer model v1" }).click();
+  await expect(
+    page.getByText("Customer Factory Model v1 was approved"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Assess opportunity" }).click();
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Dependency modernization" }),
+  ).toBeVisible();
+  await expect(page.getByText("factory-opportunity-rubric/v1")).toBeVisible();
+  await page.getByRole("button", { name: "Select factory line" }).click();
+  await expect(page.getByText(/Human-selected/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Assess seven stages" }).click();
+  await expect(page.getByText("DISCOVER", { exact: true })).toBeVisible();
+  await expect(page.getByText("IMPROVE", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Approve readiness" }).click();
+  await expect(
+    page.getByText("Final READY assessment was approved"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Generate package draft" }).click();
+  const packageHeading = page.getByRole("heading", {
+    level: 3,
+    name: "Dependency modernization · Acme Manufacturing",
+  });
+  await expect(packageHeading).toBeVisible();
+  const packageReview = page.getByRole("article").filter({
+    has: packageHeading,
+  });
+  await expect(
+    page.getByText("Exact source versions", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Authority & verification", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Acceptance, risk & provenance", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Send to review" }).click();
+  await page.getByRole("button", { name: "Approve & bind digest" }).click();
+  await expect(packageReview.getByText(/^sha256:[a-f0-9]{64}$/)).toBeVisible();
+  await page.getByRole("button", { name: "Publish immutable v1" }).click();
+  await expect(page.getByText("PUBLISHED", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Simulate safe retrieval" }).click();
+  await expect(page.getByText("Package retrieval simulated")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Retrieval is not an import receipt. No Mission or Plan draft was created.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", {
+      name: /11\. Mission Control: External import, incomplete/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/zero API requests/i, { exact: false }),
+  ).toBeVisible();
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    accessibility.violations,
+    JSON.stringify(accessibility.violations, null, 2),
+  ).toEqual([]);
+
   const screenshotPath =
     process.env.AI_FDE_DEMO_SCREENSHOT ??
     testInfo.outputPath("demo-complete.png");
   await page.screenshot({ path: screenshotPath });
 
-  expect(failedApiResponses, "AI-FDE API responses").toEqual([]);
-  expect(failedApiRequests, "AI-FDE API request failures").toEqual([]);
+  expect(apiRequests, "hosted demo API requests").toEqual([]);
+  expect(failedApiResponses, "Factory Engineer API responses").toEqual([]);
+  expect(failedApiRequests, "Factory Engineer API request failures").toEqual(
+    [],
+  );
   expect(consoleErrors, "browser console errors").toEqual([]);
 });
