@@ -134,7 +134,7 @@ def test_private_endpoints_have_private_dns_and_bounded_service_policies() -> No
     assert "policy            = local.s3_endpoint_policy" in s3
     assert "aws_s3_bucket.evidence.arn" in network
     assert "prod-${var.aws_region}-starport-layer-bucket/*" in network
-    assert "var.bedrock_model_arn" in network
+    assert "local.bedrock_invoke_resource_arns" in network
     assert "values(aws_ecr_repository.runtime)[*].arn" in network
     assert "values(aws_secretsmanager_secret.runtime)[*].arn" in network
     assert "aws_cloudwatch_log_group.runtime" in network
