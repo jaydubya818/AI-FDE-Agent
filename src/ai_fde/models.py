@@ -12,6 +12,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -63,6 +64,48 @@ class Operator(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     identity_kind: Mapped[str] = mapped_column(String(24), nullable=False, default="human")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class WorkerOperatorBinding(Base, TimestampMixin):
+    """Owner-managed binding between a database login and one deployed service identity."""
+
+    __tablename__ = "worker_operator_bindings"
+    __table_args__ = (
+        CheckConstraint(
+            "database_role ~ '^ai_fde_worker_[0-9a-f]{12}$'",
+            name="valid_worker_database_role",
+        ),
+        CheckConstraint(
+            "release_revision ~ '^[0-9a-f]{40}$' AND "
+            "release_revision <> '0000000000000000000000000000000000000000'",
+            name="valid_release_revision",
+        ),
+        CheckConstraint(
+            "deployment_id ~ '^[a-z0-9][a-z0-9._-]{7,119}$'",
+            name="valid_deployment_id",
+        ),
+        CheckConstraint(
+            "deployment_validation_id IS NULL OR "
+            "deployment_validation_id ~ '^sha256:[0-9a-f]{64}$'",
+            name="valid_worker_deployment_validation_digest",
+        ),
+    )
+
+    database_role: Mapped[str] = mapped_column(String(63), primary_key=True)
+    operator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("operators.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="SET NULL", use_alter=True),
+        unique=True,
+    )
+    release_revision: Mapped[str] = mapped_column(String(40), nullable=False)
+    deployment_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    deployment_validation_id: Mapped[str | None] = mapped_column(String(71))
 
 
 class OIDCLoginAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -271,12 +314,38 @@ class EvidenceAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "evidence_assets"
     __table_args__ = (
         UniqueConstraint("engagement_id", "content_hash", name="evidence_content_per_engagement"),
+        UniqueConstraint("engagement_id", "id", name="evidence_asset_tenant_identity"),
+        ForeignKeyConstraint(
+            ["engagement_id", "design_partner_qualification_id"],
+            [
+                "design_partner_qualifications.engagement_id",
+                "design_partner_qualifications.id",
+            ],
+            name="evidence_asset_design_partner_qualification_tenant",
+        ),
         CheckConstraint(
             "status IN ('queued', 'processing', 'needs_review', 'failed', 'complete')",
             name="valid_status",
         ),
         CheckConstraint(
             "source_type IN ('upload', 'operator_note', 'fixture')", name="valid_source_type"
+        ),
+        CheckConstraint(
+            "(design_partner_qualification_id IS NULL "
+            "AND authorized_source_key IS NULL "
+            "AND authorized_workflow_class IS NULL "
+            "AND data_classification IS NULL) "
+            "OR (design_partner_qualification_id IS NOT NULL "
+            "AND authorized_source_key IS NOT NULL "
+            "AND authorized_workflow_class IS NOT NULL "
+            "AND data_classification IN "
+            "('PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED'))",
+            name="valid_design_partner_context",
+        ),
+        CheckConstraint(
+            "storage_version_id IS NULL "
+            "OR (storage_version_id <> '' AND storage_version_id <> 'null')",
+            name="valid_storage_version_id",
         ),
         Index("ix_evidence_assets_engagement_status", "engagement_id", "status"),
     )
@@ -289,8 +358,15 @@ class EvidenceAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     byte_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    storage_version_id: Mapped[str | None] = mapped_column(String(1024))
     source_type: Mapped[str] = mapped_column(String(32), nullable=False, default="upload")
     source_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    design_partner_qualification_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True)
+    )
+    authorized_source_key: Mapped[str | None] = mapped_column(String(120))
+    authorized_workflow_class: Mapped[str | None] = mapped_column(String(160))
+    data_classification: Mapped[str | None] = mapped_column(String(24))
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
     error_message: Mapped[str | None] = mapped_column(Text)
     created_by_id: Mapped[uuid.UUID] = mapped_column(

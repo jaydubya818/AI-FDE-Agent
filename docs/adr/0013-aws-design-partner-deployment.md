@@ -3,6 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-08-11
 **Accepted:** 2026-08-12
+**Amended:** 2026-09-04 — enable bounded S3 version recovery and a dedicated evidence CMK boundary
 
 ## Context
 
@@ -20,8 +21,8 @@ Use one AWS region and account boundary for the first design-partner deployment:
 - an Application Load Balancer with HTTPS for web and API routing;
 - Amazon RDS for PostgreSQL with encryption, automated backups, TLS verification, and no public
   endpoint;
-- Amazon S3 with block-public-access and a customer-managed KMS key for evidence and generated
-  exports;
+- Amazon S3 with block-public-access and a dedicated customer-managed KMS key for evidence and
+  generated exports;
 - ECR for images, Secrets Manager for runtime secrets, CloudWatch for metadata-only logs, and
   distinct least-privilege IAM task roles;
 - Auth0 remains the human OIDC provider selected in ADR 0011.
@@ -31,9 +32,29 @@ and deployment automation uses short-lived federated credentials. Staging may be
 single-AZ database for cost control; sanitized customer data requires Multi-AZ, tested restore,
 point-in-time recovery, and a documented backup-expiry deletion boundary.
 
-S3 versioning remains off until the deletion implementation can enumerate and remove every object
-version. Model invocation logging and raw HTTP access logging remain off. Load balancer logs, if
-enabled, must be verified not to capture sensitive callback query strings.
+S3 versioning is enabled with KMS encryption and lifecycle expiry for noncurrent versions (30 days
+by default, constrained to 7–90 days). Permanent application deletion paginates and deletes every
+object version and delete marker under the exact engagement prefix, then re-lists and fails unless
+that prefix is empty. The lifecycle remains defense in depth for interrupted cleanup; customer terms
+must disclose only the remaining RDS PITR recovery boundary after successful deletion. Model
+invocation logging and raw HTTP access logging remain off. Load balancer logs, if enabled, must be
+verified not to capture sensitive callback query strings.
+
+The evidence CMK is separate from the keys used for RDS, Secrets Manager, and ECR. S3 Bucket Keys
+are enabled, so IAM constrains evidence cryptographic operations to regional S3 and the exact bucket
+ARN encryption context. The bucket policy denies non-TLS requests and rejects every object write
+that does not explicitly name both `aws:kms` and the exact evidence key ARN.
+
+The controlled pilot runs a worker bound to one canonical engagement UUID. Its task role can read
+only `engagements/<uuid>/*`, cannot enumerate the evidence bucket, and can decrypt the evidence key
+only through regional S3. Bedrock invocation is restricted to one concrete foundation-model or
+regional accountless foundation-model ARN. A second concurrent engagement requires a separately scoped worker task and
+role rather than a shared wildcard policy.
+
+The database owner separately binds the worker login to the exact service operator, engagement,
+release revision, deployment ID, and verifier-emitted validation digest. PostgreSQL rejects
+heartbeats that do not match that complete binding, and API readiness selects only the same identity.
+The validation identifier is an immutable SHA-256 digest, not a free-form approval label.
 
 ## Consequences
 

@@ -228,9 +228,9 @@ export function DataLifecycleWorkspace({
                 <ShieldIcon className="h-6 w-6 text-[var(--teal)]" />
               </div>
               <p className="mt-4 text-xs leading-5 text-[var(--ink-soft)]">
-                AI-FDE does not assume a contractual retention period. Once a
-                deadline is recorded, V1 can extend it but cannot silently
-                shorten it.
+                Factory Engineer does not assume a contractual retention period.
+                Once a deadline is recorded, V1 can extend it but cannot
+                silently shorten it.
               </p>
               {owner ? (
                 <form className="mt-5 grid gap-3" onSubmit={handleRetention}>
@@ -310,7 +310,7 @@ export function DataLifecycleWorkspace({
               )}
               <p className="mt-4 text-xs leading-5 text-[var(--ink-soft)]">
                 ZIP includes JSON and YAML state, Markdown specifications, audit
-                history, and original evidence with hash verification.
+                history, and original source evidence with hash verification.
               </p>
               {owner && (
                 <button
@@ -339,7 +339,7 @@ export function DataLifecycleWorkspace({
               </h3>
               <p className="mt-3 max-w-2xl text-xs leading-5 text-[var(--red)]">
                 Removes the engagement, structured model, workflows, economics,
-                artifacts, audit detail, and evidence objects. Only a
+                artifacts, audit detail, and source-evidence objects. Only a
                 content-free receipt remains.
               </p>
             </div>
@@ -399,8 +399,9 @@ export function DataLifecycleWorkspace({
                       }
                       type="checkbox"
                     />
-                    I understand that AI-FDE cannot restore the deleted customer
-                    content from its databases or object storage.
+                    I understand that Factory Engineer cannot restore the
+                    deleted customer content from its databases or object
+                    storage.
                   </label>
                   <button
                     className="justify-self-start rounded-full bg-[var(--red)] px-5 py-3 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40"

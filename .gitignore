@@ -20,10 +20,12 @@ test-results/
 .playwright-cli/
 output/playwright/demo/
 generated/
-runtime/
+/runtime/
 /artifacts/
 *.log
 .terraform/
 *.tfstate
 *.tfstate.*
+*.auto.tfvars
+*.tfplan
 .vercel

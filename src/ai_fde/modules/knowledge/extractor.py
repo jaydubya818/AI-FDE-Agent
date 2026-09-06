@@ -47,6 +47,7 @@ class ExtractionProvider(Protocol):
     schema_version: str
     prompt_version: str
     model_id: str | None
+    max_output_tokens: int
 
     def extract(
         self,
@@ -54,6 +55,7 @@ class ExtractionProvider(Protocol):
         *,
         image_bytes: bytes | None = None,
         image_format: Literal["png", "jpeg"] | None = None,
+        max_output_tokens: int | None = None,
     ) -> ExtractionResult: ...
 
 
@@ -65,6 +67,7 @@ class DeterministicFixtureExtractor:
     schema_version = "claim-v1"
     prompt_version = "fixture-rules-v2"
     model_id: str | None = None
+    max_output_tokens = 0
 
     _owns = re.compile(
         r"(?P<person>[A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+)+)[ \t]+owns[ \t]+"
@@ -112,8 +115,9 @@ class DeterministicFixtureExtractor:
         *,
         image_bytes: bytes | None = None,
         image_format: Literal["png", "jpeg"] | None = None,
+        max_output_tokens: int | None = None,
     ) -> ExtractionResult:
-        del image_bytes, image_format
+        del image_bytes, image_format, max_output_tokens
         claims: list[ExtractedClaim] = []
         claims.extend(self._extract_ownership(text))
         claims.extend(self._extract_system_usage(text))
