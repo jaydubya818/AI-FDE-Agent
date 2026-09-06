@@ -3,12 +3,13 @@ import "@fontsource-variable/newsreader";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { PRODUCT } from "@/lib/product";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI-FDE Operator Cockpit",
-  description:
-    "Evidence-backed operating model workspace for Forward Deployed Engineers.",
+  title: `${PRODUCT.shortName} · FDLC`,
+  description: PRODUCT.description,
 };
 
 export default function RootLayout({

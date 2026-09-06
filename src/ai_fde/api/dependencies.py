@@ -19,6 +19,7 @@ from ai_fde.modules.identity.service import (
     authorize_engagement,
 )
 from ai_fde.modules.identity.sessions import identity_session, resolve_operator_session
+from ai_fde.modules.runtime.qualification import DeploymentQualificationError
 
 
 @dataclass(frozen=True)
@@ -46,13 +47,23 @@ def get_principal(
                 return AuthenticatedPrincipal(
                     operator_id=operator_session.operator_id,
                     auth_mode="oidc",
-                    sanitized_data_allowed=settings.sanitized_data_enabled,
+                    sanitized_data_allowed=_sanitized_data_allowed(settings),
                 )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication is required.",
         headers={"WWW-Authenticate": "Cookie"},
     )
+
+
+def _sanitized_data_allowed(settings: Settings) -> bool:
+    if not settings.sanitized_data_enabled:
+        return False
+    try:
+        settings.verified_deployment_qualification()
+    except (DeploymentQualificationError, ValueError):
+        return False
+    return True
 
 
 def get_session(

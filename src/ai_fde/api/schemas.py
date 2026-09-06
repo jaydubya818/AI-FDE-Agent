@@ -36,6 +36,32 @@ class EngagementWorkspaceResponse(BaseModel):
     counts: dict[str, int]
 
 
+class DesignPartnerAuthorizedUserResponse(BaseModel):
+    operator_id: UUID
+    display_name: str
+    role: Literal["owner", "operator", "viewer"]
+
+
+class DesignPartnerQualificationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    engagement_id: UUID
+    partner_key: str
+    organization: str
+    status: Literal["ACTIVE", "SUSPENDED", "REVOKED"]
+    qualification_state: Literal["CONFIGURED", "IN_PROGRESS", "BLOCKED", "QUALIFIED"]
+    authorized_users: list[DesignPartnerAuthorizedUserResponse]
+    authorized_data_source_keys: list[str]
+    authorized_repository_refs: list[str]
+    allowed_workflow_classes: list[str]
+    data_classification: Literal["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]
+    retention_days: int
+    authorization_basis_ref: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class EngagementAssessmentCreate(BaseModel):
     delivery_method: Literal["ai_fde", "conventional"]
     perspective: Literal["operator", "engineering"]
@@ -156,6 +182,10 @@ class EvidenceResponse(BaseModel):
     byte_count: int
     source_type: str
     source_timestamp: datetime | None
+    design_partner_qualification_id: UUID | None
+    authorized_source_key: str | None
+    authorized_workflow_class: str | None
+    data_classification: str | None
     status: str
     error_message: str | None
     created_at: datetime
