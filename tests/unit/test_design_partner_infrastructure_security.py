@@ -135,6 +135,7 @@ def test_private_endpoints_have_private_dns_and_bounded_service_policies() -> No
     assert "aws_s3_bucket.evidence.arn" in network
     assert "prod-${var.aws_region}-starport-layer-bucket/*" in network
     assert "local.bedrock_invoke_resource_arns" in network
+    assert 'Action    = ["bedrock:CountTokens", "bedrock:InvokeModel"]' in network
     assert "values(aws_ecr_repository.runtime)[*].arn" in network
     assert "values(aws_secretsmanager_secret.runtime)[*].arn" in network
     assert "aws_cloudwatch_log_group.runtime" in network
@@ -142,6 +143,14 @@ def test_private_endpoints_have_private_dns_and_bounded_service_policies() -> No
     # controls the caller and every data-plane endpoint policy uses exact resources.
     assert network.count('Resource  = "*"') == 1
     assert 'Action    = ["ecr:GetAuthorizationToken"]' in network
+
+
+def test_worker_role_allows_token_counting_only_for_the_selected_model_resources() -> None:
+    iam = _read(TERRAFORM / "iam.tf")
+    bedrock = _hcl_block(iam, "data", "aws_iam_policy_document", "bedrock")
+
+    assert 'actions   = ["bedrock:CountTokens", "bedrock:InvokeModel"]' in bedrock
+    assert "resources = local.bedrock_invoke_resource_arns" in bedrock
 
 
 def test_human_roles_cannot_choose_migration_task_network_or_roles() -> None:
