@@ -221,7 +221,7 @@ locals {
 data "aws_iam_policy_document" "bedrock" {
   statement {
     sid       = "InvokeSelectedModel"
-    actions   = ["bedrock:InvokeModel"]
+    actions   = ["bedrock:CountTokens", "bedrock:InvokeModel"]
     resources = local.bedrock_invoke_resource_arns
   }
 }
