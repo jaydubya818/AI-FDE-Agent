@@ -454,7 +454,7 @@ locals {
       Statement = [{
         Effect    = "Allow"
         Principal = "*"
-        Action    = ["bedrock:InvokeModel"]
+        Action    = ["bedrock:CountTokens", "bedrock:InvokeModel"]
         Resource  = local.bedrock_invoke_resource_arns
       }]
     })
