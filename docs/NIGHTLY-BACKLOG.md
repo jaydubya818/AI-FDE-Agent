@@ -7,16 +7,15 @@ re-deriving it. Product and delivery work lives in
 
 ## Open
 
-- [ ] 2026-09-01 — No continuous integration of any kind — `.github/workflows/` does not exist, so `ruff`, `mypy`, `pytest`, `tsc`, `eslint` and `next build` only ever run on a contributor's machine, and CONTRIBUTING.md's "make sure the project still builds" is unenforced.
 - [ ] 2026-09-01 — The JavaScript half has no unit test runner — `apps/web` ships only Playwright e2e specs, which need a browser install and a running API, so `lib/api.ts` and `lib/hosted-demo.ts` have no test that runs during a normal check cycle.
 - [ ] 2026-09-01 — Operator de-authorization is not immediate — `oidc_allowed_emails` is checked in `enroll_operator` at login only, so removing an operator from the allowlist leaves any live session valid for up to `session_ttl_seconds` (12h default). Revoking `OperatorSession` rows on allowlist change would close it.
 - [ ] 2026-09-01 — Dead defensive check in `verify_id_token` — `isinstance(subject, str)` is unreachable because joserfc's claims registry already rejects a non-string `sub`. The sibling check on `email` is load-bearing and is now tested. Left in place as defence in depth; remove only alongside a deliberate decision about which layer owns claim typing.
-- [ ] 2026-09-01 — Service-layer coverage is gated on Docker — `modules/workflows/service.py` (15%), `knowledge/jobs.py` (16%), `artifacts/service.py` (19%) and `economics/service.py` (25%) are reachable only through the `integration`/`isolation` suites, which skip without a Docker daemon. Their pure helpers could be separated to make the arithmetic testable in isolation; `economics` is money math and is the one worth doing first.
+- [ ] 2026-09-01 — Service-layer coverage is gated on Docker — `modules/workflows/service.py` (15%), `knowledge/jobs.py` (16%) and `artifacts/service.py` (19%) are reachable only through the `integration`/`isolation` suites, which skip without a Docker daemon. **(2026-09-11: `economics/service.py` narrowed out of this item and closed below -- its two arithmetic helpers were already pure, no separation needed.)** The other three still want the same treatment.
 
 ## Closed
 
-Nothing yet. This file was created on 2026-09-01, so there is no prior open
-item for this run to have closed.
+- [x] 2026-09-01 → 2026-09-11 — No CI of any kind — added `.github/workflows/verify.yml` (`b7523d0`): a python job (uv sync, ruff check, mypy src tests, pytest excluding integration/isolation) verified locally end to end (ruff clean, mypy clean on 116 files, 335 passed / 61 deselected), and a javascript job (pnpm install, pnpm lint, pnpm typecheck) that mirrors package.json's own scripts exactly but is UNVERIFIED locally -- this run hit repeated npm-registry ECONNRESET errors on unrelated repos tonight and did not want to burn more time retrying rather than report it honestly. Whoever reviews the first CI run on this workflow should confirm the javascript job passes before trusting it.
+- [x] 2026-09-01 → 2026-09-11 — `economics/service.py` coverage (the money-math priority carved out of the service-layer-coverage item above) — added `tests/unit/test_economics_calculations.py` (`01f4f4d`), 5 characterization tests pinning `_calculate_outputs` and `_scenario_values` directly. Both were already pure (no Session, no database), so the "separate the pure helpers" premise in the original entry did not apply -- they needed no separation, only a non-integration test importing them. Verified: ruff clean, mypy clean, full suite 340 passed / 61 deselected (was 335 before this commit, 0 regressions).
 
 ## Checked, not applicable
 
