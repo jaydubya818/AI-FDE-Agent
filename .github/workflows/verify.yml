@@ -1,4 +1,4 @@
-name: Verify
+name: Fast static checks (non-release)
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   python:
+    name: Python static/unit subset
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +23,7 @@ jobs:
         run: uv run pytest -m "not integration and not isolation"
 
   javascript:
+    name: JavaScript static checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

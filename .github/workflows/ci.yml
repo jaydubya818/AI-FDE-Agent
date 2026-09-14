@@ -3,7 +3,7 @@ name: Factory Engineer CI
 on:
   pull_request:
   push:
-    branches: [main, "codex/**"]
+    branches: [main]
 
 permissions:
   contents: read
@@ -104,7 +104,7 @@ jobs:
             --publish 59000:9000 \
             --env MINIO_ROOT_USER=ai-fde-dev \
             --env MINIO_ROOT_PASSWORD=ai-fde-dev-secret \
-            minio/minio:RELEASE.2025-03-12T18-04-18Z server /data
+            quay.io/minio/minio@sha256:46b3009bf7041eefbd90bd0d2b38c6ddc24d20a35d609551a1802c558c1c958f server /data
           for _attempt in {1..30}; do
             if curl --fail --silent http://localhost:59000/minio/health/live >/dev/null; then
               exit 0

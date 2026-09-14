@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "buildCommand": "NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=true NEXT_PUBLIC_AI_FDE_API_URL=https://api.ai-fde.invalid/api pnpm run build"
 }

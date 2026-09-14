@@ -113,17 +113,14 @@ The production alias runs the verified Phase 2 hosted demo from revision `196ab3
 
 Demo state is stored in the evaluator's browser. It can be reset by clearing site data. The hosted demo makes no model call, accepts no customer data, and does not claim live PostgreSQL isolation, Auth0 validation, a persistent worker, AWS object storage, Bedrock extraction, or production readiness. Those capabilities remain on the real FastAPI deployment path and fail closed until their external gates are satisfied.
 
-Preview builds are deployed from the repository root with the Vercel project root configured as `apps/web`. The Next.js configuration fails the Vercel build unless both safety variables are present:
+Preview builds are deployed from the repository root with the Vercel project root configured as `apps/web`. The checked-in Vercel build command supplies the two non-secret safety values below, and the Next.js configuration fails the build if either value is absent or changed:
 
 ```bash
 vercel link --yes --project ai-fde-agent
-vercel deploy . \
-  --build-env NEXT_PUBLIC_AI_FDE_HOSTED_DEMO=true \
-  --build-env NEXT_PUBLIC_AI_FDE_API_URL=https://api.ai-fde.invalid/api \
-  -y
+vercel deploy . -y
 ```
 
-Production deployments use the same verified commit and fail-closed safety variables with
+Production deployments use the same verified commit and fail-closed checked-in build command with
 `vercel deploy . --prod`. Promotion remains an explicit decision after preview acceptance.
 
 The invalid API URL is intentional in hosted-demo mode: browser requests are handled by the synthetic adapter and cannot silently fall through to an unvalidated service.
