@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
     "test:e2e:alpha": "playwright test tests/e2e/internal-alpha.spec.ts",
     "test:e2e:golden": "playwright test tests/e2e/golden-path.spec.ts",
@@ -32,6 +33,7 @@
     "postcss": "^8.5.6",
     "prettier": "^3.9.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "5.0.5"
   }
 }
